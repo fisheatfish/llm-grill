@@ -18,15 +18,14 @@ runner = CliRunner()
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def valid_scenario_file(tmp_path: Path) -> Path:
     data = {
         "name": "test",
         "servers": [{"name": "s1", "url": "http://localhost:8000", "backend": "vllm"}],
         "models": [{"name": "m1", "max_tokens": 128}],
-        "conversations": [
-            {"name": "c1", "turns": [{"role": "user", "content": "hello"}]}
-        ],
+        "conversations": [{"name": "c1", "turns": [{"role": "user", "content": "hello"}]}],
         "targets": [{"server": "s1", "model": "m1", "conversation": "c1"}],
     }
     f = tmp_path / "scenario.yaml"
@@ -38,11 +37,20 @@ def valid_scenario_file(tmp_path: Path) -> Path:
 def results_file(tmp_path: Path) -> Path:
     path = tmp_path / "results.jsonl"
     m = RequestMetrics(
-        scenario="test", target_server="s1", target_model="m1",
-        conversation="c1", turn=0, iteration=0, user_id=0,
+        scenario="test",
+        target_server="s1",
+        target_model="m1",
+        conversation="c1",
+        turn=0,
+        iteration=0,
+        user_id=0,
         timestamp_start="2026-01-01T00:00:00+00:00",
-        ttft_s=0.1, tpot_s=0.02, e2e_latency_s=0.5,
-        prompt_tokens=10, completion_tokens=20, tokens_per_second=40.0,
+        ttft_s=0.1,
+        tpot_s=0.02,
+        e2e_latency_s=0.5,
+        prompt_tokens=10,
+        completion_tokens=20,
+        tokens_per_second=40.0,
         success=True,
     )
     with JsonlWriter(path) as w:
@@ -54,6 +62,7 @@ def results_file(tmp_path: Path) -> Path:
 # --version
 # ---------------------------------------------------------------------------
 
+
 class TestVersion:
     def test_version_flag(self) -> None:
         result = runner.invoke(app, ["--version"])
@@ -64,6 +73,7 @@ class TestVersion:
 # ---------------------------------------------------------------------------
 # show-scenario
 # ---------------------------------------------------------------------------
+
 
 class TestShowScenario:
     def test_valid_scenario(self, valid_scenario_file: Path) -> None:
@@ -87,6 +97,7 @@ class TestShowScenario:
 # ping
 # ---------------------------------------------------------------------------
 
+
 class TestPing:
     def test_missing_file(self, tmp_path: Path) -> None:
         result = runner.invoke(app, ["ping", str(tmp_path / "nope.yaml")])
@@ -96,6 +107,7 @@ class TestPing:
 # ---------------------------------------------------------------------------
 # report
 # ---------------------------------------------------------------------------
+
 
 class TestReport:
     def test_missing_results_file(self, tmp_path: Path) -> None:
@@ -127,15 +139,14 @@ class TestReport:
         assert out.exists()
 
     def test_no_conversations_flag(self, results_file: Path) -> None:
-        result = runner.invoke(
-            app, ["report", str(results_file), "--no-conversations"]
-        )
+        result = runner.invoke(app, ["report", str(results_file), "--no-conversations"])
         assert result.exit_code == 0
 
 
 # ---------------------------------------------------------------------------
 # run
 # ---------------------------------------------------------------------------
+
 
 class TestRun:
     def test_missing_scenario(self, tmp_path: Path) -> None:

@@ -64,12 +64,12 @@ class ConversationMetrics:
     target_server: str
     target_model: str
     conversation: str
-    ttft_by_turn: dict[int, float]       # turn index -> mean TTFT (s)
-    e2e_by_turn: dict[int, float]        # turn index -> mean E2E latency (s)
-    turn_to_turn_ratio: float | None     # mean(TTFT turn>0) / mean(TTFT turn=0)
+    ttft_by_turn: dict[int, float]  # turn index -> mean TTFT (s)
+    e2e_by_turn: dict[int, float]  # turn index -> mean E2E latency (s)
+    turn_to_turn_ratio: float | None  # mean(TTFT turn>0) / mean(TTFT turn=0)
     context_growth_factor: float | None  # mean(E2E last turn) / mean(E2E first turn)
-    kv_cache_hit_rate_mean: float | None # SGLang: cache_hit_rate averaged across requests
-    kv_cache_usage_mean: float | None    # vLLM: gpu_cache_usage_perc averaged across requests
+    kv_cache_hit_rate_mean: float | None  # SGLang: cache_hit_rate averaged across requests
+    kv_cache_usage_mean: float | None  # vLLM: gpu_cache_usage_perc averaged across requests
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -78,6 +78,7 @@ class ConversationMetrics:
 # ---------------------------------------------------------------------------
 # Aggregation
 # ---------------------------------------------------------------------------
+
 
 def group_by_target(
     results: list[RequestMetrics],
@@ -152,23 +153,13 @@ def _compute_conversation_metrics(results: list[RequestMetrics]) -> Conversation
     successful = [r for r in results if r.success]
     turns = sorted({r.turn for r in successful})
 
-    ttft_by_turn = {
-        t: mean(r.ttft_s for r in successful if r.turn == t)
-        for t in turns
-    }
-    e2e_by_turn = {
-        t: mean(r.e2e_latency_s for r in successful if r.turn == t)
-        for t in turns
-    }
+    ttft_by_turn = {t: mean(r.ttft_s for r in successful if r.turn == t) for t in turns}
+    e2e_by_turn = {t: mean(r.e2e_latency_s for r in successful if r.turn == t) for t in turns}
 
     turn_to_turn_ratio = _turn_to_turn_ratio(ttft_by_turn)
     context_growth_factor = _context_growth_factor(e2e_by_turn)
-    kv_cache_hit_rate_mean = _extract_backend_metric(
-        successful, ["cache_hit_rate"]
-    )
-    kv_cache_usage_mean = _extract_backend_metric(
-        successful, ["vllm:gpu_cache_usage_perc"]
-    )
+    kv_cache_hit_rate_mean = _extract_backend_metric(successful, ["cache_hit_rate"])
+    kv_cache_usage_mean = _extract_backend_metric(successful, ["vllm:gpu_cache_usage_perc"])
 
     r0 = results[0]
     return ConversationMetrics(
@@ -188,6 +179,7 @@ def _compute_conversation_metrics(results: list[RequestMetrics]) -> Conversation
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _p95(values: list[float]) -> float:
     if len(values) < 2:

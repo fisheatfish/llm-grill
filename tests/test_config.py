@@ -88,9 +88,7 @@ class TestLoadScenario:
             "name": "test",
             "servers": [{"name": "s1", "url": "http://localhost:8000", "backend": "vllm"}],
             "models": [{"name": "m1", "max_tokens": 128}],
-            "conversations": [
-                {"name": "c1", "turns": [{"role": "user", "content": "hi"}]}
-            ],
+            "conversations": [{"name": "c1", "turns": [{"role": "user", "content": "hi"}]}],
             "targets": [{"server": "s1", "model": "m1", "conversation": "c1"}],
         }
         f = tmp_path / "scenario.yaml"

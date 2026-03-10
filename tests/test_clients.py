@@ -56,20 +56,24 @@ def messages() -> list[Message]:
 class TestGetClient:
     def test_returns_vllm_client(self, vllm_server: ServerConfig) -> None:
         from llm_bench.clients.vllm import VllmClient
+
         client = get_client(vllm_server)
         assert isinstance(client, VllmClient)
 
     def test_returns_sglang_client(self) -> None:
         from llm_bench.clients.sglang import SglangClient
+
         server = ServerConfig(name="s", url="http://localhost:30000", backend=Backend.sglang)
         assert isinstance(get_client(server), SglangClient)
 
     def test_returns_llamacpp_client(self) -> None:
         from llm_bench.clients.llamacpp import LlamaCppClient
+
         server = ServerConfig(name="s", url="http://localhost:8080", backend=Backend.llamacpp)
         assert isinstance(get_client(server), LlamaCppClient)
 
 
+@pytest.mark.asyncio
 class TestVllmClientComplete:
     @respx.mock
     async def test_complete_success(

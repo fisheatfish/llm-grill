@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from .base import BaseClient, _HEALTH_TIMEOUT
+from .base import _HEALTH_TIMEOUT, BaseClient
 from .prometheus import parse_prometheus
 
 logger = logging.getLogger(__name__)

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, HttpUrl, PositiveFloat, PositiveInt, model_validator
 
 
-class Backend(str, Enum):
+class Backend(StrEnum):
     vllm = "vllm"
     sglang = "sglang"
     llamacpp = "llamacpp"
@@ -78,7 +78,8 @@ class ScenarioConfig(BaseModel):
         for t in self.targets:
             if t.server not in server_names:
                 raise ValueError(
-                    f"Target references unknown server '{t.server}'. Available: {sorted(server_names)}"
+                    f"Target references unknown server '{t.server}'. "
+                    f"Available: {sorted(server_names)}"
                 )
             if t.model not in model_names:
                 raise ValueError(

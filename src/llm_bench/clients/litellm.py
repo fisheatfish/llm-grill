@@ -18,7 +18,5 @@ class LiteLLMClient(BaseClient):
                 return {}
             return {"raw_prometheus": resp.text[:2000]}
         except Exception:
-            logger.debug(
-                "Failed to fetch LiteLLM metrics for %s", self.server.name, exc_info=True
-            )
+            logger.debug("Failed to fetch LiteLLM metrics for %s", self.server.name, exc_info=True)
             return {}

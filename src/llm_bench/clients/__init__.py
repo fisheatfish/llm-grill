@@ -5,8 +5,8 @@ from __future__ import annotations
 from llm_bench.config import Backend, ServerConfig
 
 from .base import BaseClient
-from .llamacpp import LlamaCppClient
 from .litellm import LiteLLMClient
+from .llamacpp import LlamaCppClient
 from .sglang import SglangClient
 from .vllm import VllmClient
 

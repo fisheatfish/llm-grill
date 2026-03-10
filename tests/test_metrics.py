@@ -48,6 +48,7 @@ def _make_result(
 # RequestMetrics
 # ---------------------------------------------------------------------------
 
+
 class TestRequestMetrics:
     def test_to_jsonl_is_valid_json(self) -> None:
         m = _make_result()
@@ -63,6 +64,7 @@ class TestRequestMetrics:
 # ---------------------------------------------------------------------------
 # aggregate
 # ---------------------------------------------------------------------------
+
 
 class TestAggregate:
     def test_basic_aggregation(self) -> None:
@@ -98,6 +100,7 @@ class TestAggregate:
 # ---------------------------------------------------------------------------
 # aggregate_conversations
 # ---------------------------------------------------------------------------
+
 
 class TestAggregateConversations:
     def test_single_turn_no_ratio(self) -> None:

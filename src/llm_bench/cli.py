@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import anyio
 import typer
@@ -22,6 +22,7 @@ from llm_bench.metrics import (
 )
 from llm_bench.report import (
     JsonlWriter,
+    console,
     export_csv,
     load_jsonl,
     print_aggregated_json,
@@ -36,7 +37,6 @@ app = typer.Typer(
     help="Benchmark LLM inference servers (vLLM, SGLang, llama.cpp, LiteLLM).",
     add_completion=False,
 )
-console = Console()
 err_console = Console(stderr=True, style="bold red")
 
 
@@ -57,13 +57,14 @@ def verbose_callback(value: bool) -> None:
 @app.callback()
 def main(
     _version: Annotated[
-        Optional[bool],
+        bool | None,
         typer.Option("--version", "-V", callback=version_callback, is_eager=True),
     ] = None,
     _verbose: Annotated[
-        Optional[bool],
-        typer.Option("--verbose", "-v", callback=verbose_callback, is_eager=True,
-                     help="Enable debug logging"),
+        bool | None,
+        typer.Option(
+            "--verbose", "-v", callback=verbose_callback, is_eager=True, help="Enable debug logging"
+        ),
     ] = None,
 ) -> None:
     pass
@@ -73,11 +74,12 @@ def main(
 # llm-bench run
 # ---------------------------------------------------------------------------
 
+
 @app.command()
 def run(
     scenario: Annotated[Path, typer.Argument(help="Path to YAML scenario file")],
     output: Annotated[
-        Optional[Path], typer.Option("--output", "-o", help="Output JSONL file")
+        Path | None, typer.Option("--output", "-o", help="Output JSONL file")
     ] = None,
     format: Annotated[
         str, typer.Option("--format", "-f", help="Output format: jsonl | csv")
@@ -115,8 +117,7 @@ def run(
                 progress.update(
                     task_id,
                     description=(
-                        f"{status} {m.target_server} | turn={m.turn} "
-                        f"TTFT={m.ttft_s * 1000:.0f}ms"
+                        f"{status} {m.target_server} | turn={m.turn} TTFT={m.ttft_s * 1000:.0f}ms"
                     ),
                 )
 
@@ -137,6 +138,7 @@ def run(
 # ---------------------------------------------------------------------------
 # llm-bench ping
 # ---------------------------------------------------------------------------
+
 
 @app.command()
 def ping(
@@ -163,6 +165,7 @@ def ping(
 # ---------------------------------------------------------------------------
 # llm-bench show-scenario
 # ---------------------------------------------------------------------------
+
 
 @app.command(name="show-scenario")
 def show_scenario(
@@ -210,13 +213,14 @@ def show_scenario(
 # llm-bench report
 # ---------------------------------------------------------------------------
 
+
 @app.command()
 def report(
     results_file: Annotated[Path, typer.Argument(help="JSONL results file")],
     format: Annotated[
         str, typer.Option("--format", "-f", help="Output format: table | json | csv")
     ] = "table",
-    output: Annotated[Optional[Path], typer.Option("--output", "-o")] = None,
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
     no_conversations: Annotated[
         bool, typer.Option("--no-conversations", help="Hide conversation metrics table")
     ] = False,
@@ -252,9 +256,8 @@ def report(
 # helpers
 # ---------------------------------------------------------------------------
 
-def _print_results(
-    results: list[RequestMetrics], total_duration: float, quiet: bool
-) -> None:
+
+def _print_results(results: list[RequestMetrics], total_duration: float, quiet: bool) -> None:
     if quiet or not results:
         return
     aggregations = [aggregate(v, total_duration) for v in group_by_target(results).values()]

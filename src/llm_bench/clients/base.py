@@ -65,7 +65,7 @@ class BaseClient(ABC):
             async for line in resp.aiter_lines():
                 if not line.startswith("data:"):
                     continue
-                raw = line[len("data:"):].strip()
+                raw = line[len("data:") :].strip()
                 if raw == "[DONE]":
                     break
                 try:
@@ -95,7 +95,10 @@ class BaseClient(ABC):
 
         logger.debug(
             "Done server=%s TTFT=%.3fs E2E=%.3fs tokens=%d",
-            self.server.name, ttft, e2e, completion_tokens,
+            self.server.name,
+            ttft,
+            e2e,
+            completion_tokens,
         )
 
         return StreamResult(

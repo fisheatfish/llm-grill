@@ -76,28 +76,34 @@ class ConversationRunner:
                     error = str(exc)
                     logger.warning(
                         "Request failed server=%s user=%d iter=%d turn=%d: %s",
-                        self.server.name, self.user_id, self.iteration, turn_index, exc,
+                        self.server.name,
+                        self.user_id,
+                        self.iteration,
+                        turn_index,
+                        exc,
                     )
 
-                self.on_result(RequestMetrics(
-                    scenario=self.scenario_name,
-                    target_server=self.server.name,
-                    target_model=self.model.name,
-                    conversation=self.conversation.name,
-                    turn=turn_index,
-                    iteration=self.iteration,
-                    user_id=self.user_id,
-                    timestamp_start=ts,
-                    ttft_s=result.ttft_s if result else 0.0,
-                    tpot_s=result.tpot_s if result else 0.0,
-                    e2e_latency_s=result.e2e_latency_s if result else 0.0,
-                    prompt_tokens=result.prompt_tokens if result else 0,
-                    completion_tokens=result.completion_tokens if result else 0,
-                    tokens_per_second=result.tokens_per_second if result else 0.0,
-                    success=success,
-                    error=error,
-                    backend_metrics=backend_m,
-                ))
+                self.on_result(
+                    RequestMetrics(
+                        scenario=self.scenario_name,
+                        target_server=self.server.name,
+                        target_model=self.model.name,
+                        conversation=self.conversation.name,
+                        turn=turn_index,
+                        iteration=self.iteration,
+                        user_id=self.user_id,
+                        timestamp_start=ts,
+                        ttft_s=result.ttft_s if result else 0.0,
+                        tpot_s=result.tpot_s if result else 0.0,
+                        e2e_latency_s=result.e2e_latency_s if result else 0.0,
+                        prompt_tokens=result.prompt_tokens if result else 0,
+                        completion_tokens=result.completion_tokens if result else 0,
+                        tokens_per_second=result.tokens_per_second if result else 0.0,
+                        success=success,
+                        error=error,
+                        backend_metrics=backend_m,
+                    )
+                )
                 turn_index += 1
 
                 if self.think_time > 0:
@@ -130,8 +136,11 @@ class TargetRunner:
 
         logger.info(
             "Target %s/%s/%s — %d users × %d iterations",
-            self.target.server, self.target.model, self.target.conversation,
-            load.concurrent_users, load.iterations,
+            self.target.server,
+            self.target.model,
+            self.target.conversation,
+            load.concurrent_users,
+            load.iterations,
         )
 
         async with anyio.create_task_group() as tg:
