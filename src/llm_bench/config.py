@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from enum import Enum
-from pathlib import Path
 from typing import Annotated
 
 from pydantic import BaseModel, Field, HttpUrl, PositiveFloat, PositiveInt, model_validator
@@ -33,7 +32,7 @@ class ModelConfig(BaseModel):
 
 
 class Message(BaseModel):
-    role: str  # "system" | "user" | "assistant"
+    role: str
     content: str
 
 
@@ -43,7 +42,7 @@ class ConversationTemplate(BaseModel):
     turns: list[Message]
 
     @model_validator(mode="after")
-    def has_at_least_one_user_turn(self) -> ConversationTemplate:
+    def has_user_turn(self) -> ConversationTemplate:
         if not any(m.role == "user" for m in self.turns):
             raise ValueError("Conversation must have at least one user turn")
         return self
@@ -53,7 +52,7 @@ class LoadConfig(BaseModel):
     concurrent_users: PositiveInt = 1
     iterations: PositiveInt = 1
     ramp_up_seconds: float = 0.0
-    think_time_seconds: float = 0.0  # pause between turns
+    think_time_seconds: float = 0.0
 
 
 class BenchmarkTarget(BaseModel):
@@ -75,21 +74,16 @@ class ScenarioConfig(BaseModel):
         for s in self.servers:
             if s.name == name:
                 return s
-        raise KeyError(f"Server '{name}' not found in scenario")
+        raise KeyError(f"Server '{name}' not found")
 
     def get_model(self, name: str) -> ModelConfig:
         for m in self.models:
             if m.name == name:
                 return m
-        raise KeyError(f"Model '{name}' not found in scenario")
+        raise KeyError(f"Model '{name}' not found")
 
     def get_conversation(self, name: str) -> ConversationTemplate:
         for c in self.conversations:
             if c.name == name:
                 return c
-        raise KeyError(f"Conversation '{name}' not found in scenario")
-
-    @classmethod
-    def from_file(cls, path: Path) -> ScenarioConfig:
-        import json
-        return cls.model_validate(json.loads(path.read_text()))
+        raise KeyError(f"Conversation '{name}' not found")

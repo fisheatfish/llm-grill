@@ -1,0 +1,156 @@
+# Benchmark scenario — Devstral-Small-2-24B on Scaleway infrastructure
+# Infrastructure:
+#   gpu-llama  (L40S)  : llama-server GGUF
+#   gpu-vllm   (H100)  : vLLM BF16
+#   gpu-sglang (H100)  : SGLang BF16
+#   gateway    (DEV1-M): LiteLLM proxy
+
+name: scaleway-devstral
+description: >
+  Benchmark Devstral-Small-2-24B-Instruct-2512 across three backends.
+  Objectives: resilience check, llama-server vs vLLM comparison, vLLM vs SGLang comparison.
+
+servers:
+  - name: gpu-llama
+    url: http://gpu-llama:8080
+    api_key: none
+    backend: llamacpp
+    timeout: 120.0
+
+  - name: gpu-vllm
+    url: http://gpu-vllm:8000
+    api_key: none
+    backend: vllm
+    timeout: 120.0
+
+  - name: gpu-sglang
+    url: http://gpu-sglang:30000
+    api_key: none
+    backend: sglang
+    timeout: 120.0
+
+  # Uncomment to route through the LiteLLM gateway instead
+  # - name: gateway
+  #   url: http://gateway:4000
+  #   api_key: none
+  #   backend: litellm
+  #   timeout: 120.0
+
+models:
+  - name: devstral-small-2-24b
+    max_tokens: 512
+    temperature: 0.0
+
+conversations:
+  - name: short-code-question
+    description: Single-turn, short prompt — baseline latency
+    turns:
+      - role: user
+        content: "Write a Python function that returns the nth Fibonacci number using memoization."
+
+  - name: multi-turn-debug
+    description: Multi-turn conversation simulating a debug session — tests KV cache reuse
+    turns:
+      - role: system
+        content: "You are an expert Python developer. Be concise."
+      - role: user
+        content: "I have a FastAPI app that sometimes returns 500 errors under load. What should I check first?"
+      - role: user
+        content: "I found that the DB connection pool is exhausted. How do I configure SQLAlchemy pool size?"
+      - role: user
+        content: "What pool size would you recommend for 50 concurrent users?"
+
+  - name: long-context
+    description: Long prompt to stress prefill time and KV cache
+    turns:
+      - role: user
+        content: |
+          Here is a large Python module with several classes and functions.
+          Please review it and suggest performance improvements.
+
+          ```python
+          import time
+          import random
+          from typing import List, Dict, Optional
+
+          class DataProcessor:
+              def __init__(self, data: List[Dict]):
+                  self.data = data
+                  self.cache = {}
+
+              def process_all(self) -> List[Dict]:
+                  results = []
+                  for item in self.data:
+                      result = self.process_item(item)
+                      results.append(result)
+                  return results
+
+              def process_item(self, item: Dict) -> Dict:
+                  key = str(item.get('id'))
+                  if key in self.cache:
+                      return self.cache[key]
+                  # Simulate expensive computation
+                  time.sleep(0.001)
+                  processed = {k: v * 2 if isinstance(v, int) else v for k, v in item.items()}
+                  self.cache[key] = processed
+                  return processed
+
+              def filter_by_threshold(self, threshold: int) -> List[Dict]:
+                  return [item for item in self.data if item.get('value', 0) > threshold]
+
+              def aggregate(self) -> Dict:
+                  total = sum(item.get('value', 0) for item in self.data)
+                  count = len(self.data)
+                  return {'total': total, 'count': count, 'average': total / count if count else 0}
+
+          def generate_data(n: int) -> List[Dict]:
+              return [{'id': i, 'value': random.randint(0, 100), 'label': f'item_{i}'} for i in range(n)]
+
+          if __name__ == '__main__':
+              data = generate_data(10000)
+              processor = DataProcessor(data)
+              results = processor.process_all()
+              filtered = processor.filter_by_threshold(50)
+              stats = processor.aggregate()
+              print(stats)
+          ```
+
+          Focus on: algorithmic complexity, memory usage, and Python idioms.
+
+targets:
+  # --- Baseline: one request per server ---
+  - server: gpu-llama
+    model: devstral-small-2-24b
+    conversation: short-code-question
+
+  - server: gpu-vllm
+    model: devstral-small-2-24b
+    conversation: short-code-question
+
+  - server: gpu-sglang
+    model: devstral-small-2-24b
+    conversation: short-code-question
+
+  # --- KV cache comparison: multi-turn ---
+  - server: gpu-vllm
+    model: devstral-small-2-24b
+    conversation: multi-turn-debug
+
+  - server: gpu-sglang
+    model: devstral-small-2-24b
+    conversation: multi-turn-debug
+
+  # --- Prefill stress: long context ---
+  - server: gpu-vllm
+    model: devstral-small-2-24b
+    conversation: long-context
+
+  - server: gpu-sglang
+    model: devstral-small-2-24b
+    conversation: long-context
+
+load:
+  concurrent_users: 10
+  iterations: 3
+  ramp_up_seconds: 5.0
+  think_time_seconds: 0.0

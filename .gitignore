@@ -1,0 +1,14 @@
+docs/plan/
+results/
+*.jsonl
+*.csv
+.env
+dist/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.venv/
+uv.lock
+*.egg-info/
