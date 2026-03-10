@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass, field
+from datetime import datetime
 from statistics import mean, median, quantiles
 
 
@@ -77,6 +78,30 @@ class ConversationMetrics:
 # ---------------------------------------------------------------------------
 # Aggregation
 # ---------------------------------------------------------------------------
+
+def group_by_target(
+    results: list[RequestMetrics],
+) -> dict[tuple[str, str], list[RequestMetrics]]:
+    """Group results by (target_server, target_model)."""
+    groups: dict[tuple[str, str], list[RequestMetrics]] = {}
+    for r in results:
+        groups.setdefault((r.target_server, r.target_model), []).append(r)
+    return groups
+
+
+def estimate_total_duration(results: list[RequestMetrics]) -> float:
+    """Estimate benchmark wall-clock duration from request timestamps and E2E latencies.
+
+    More accurate than max(e2e_latency) when requests ran concurrently.
+    Falls back to 1.0 if results is empty.
+    """
+    if not results:
+        return 1.0
+    starts = [datetime.fromisoformat(r.timestamp_start).timestamp() for r in results]
+    ends = [s + r.e2e_latency_s for s, r in zip(starts, results)]
+    duration = max(ends) - min(starts)
+    return duration if duration > 0 else 1.0
+
 
 def aggregate(results: list[RequestMetrics], total_duration_s: float) -> AggregatedMetrics:
     if not results:

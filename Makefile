@@ -1,4 +1,4 @@
-.PHONY: install test lint fmt build clean
+.PHONY: install test test-cov lint fmt build clean
 
 # Install all dependencies including dev extras
 install:

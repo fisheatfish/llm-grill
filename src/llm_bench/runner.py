@@ -1,7 +1,8 @@
-"""Benchmark orchestration — concurrent users, conversation turns, metric collection."""
+"""Benchmark orchestration — concurrent users, sequential iterations, metric collection."""
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -12,12 +13,15 @@ from llm_bench.clients import get_client
 from llm_bench.config import (
     BenchmarkTarget,
     ConversationTemplate,
+    LoadConfig,
     Message,
     ModelConfig,
     ScenarioConfig,
     ServerConfig,
 )
 from llm_bench.metrics import RequestMetrics
+
+logger = logging.getLogger(__name__)
 
 ResultCallback = Callable[[RequestMetrics], None]
 
@@ -70,6 +74,10 @@ class ConversationRunner:
                     backend_m = {}
                     success = False
                     error = str(exc)
+                    logger.warning(
+                        "Request failed server=%s user=%d iter=%d turn=%d: %s",
+                        self.server.name, self.user_id, self.iteration, turn_index, exc,
+                    )
 
                 self.on_result(RequestMetrics(
                     scenario=self.scenario_name,
@@ -97,7 +105,7 @@ class ConversationRunner:
 
 
 class TargetRunner:
-    """Runs all (users × iterations) for one BenchmarkTarget."""
+    """Runs all users concurrently, each executing their iterations sequentially."""
 
     def __init__(
         self,
@@ -120,25 +128,44 @@ class TargetRunner:
             results.append(m)
             self.on_result(m)
 
+        logger.info(
+            "Target %s/%s/%s — %d users × %d iterations",
+            self.target.server, self.target.model, self.target.conversation,
+            load.concurrent_users, load.iterations,
+        )
+
         async with anyio.create_task_group() as tg:
             for user_id in range(load.concurrent_users):
-                if load.ramp_up_seconds and user_id > 0:
-                    delay = load.ramp_up_seconds / load.concurrent_users * user_id
-                    await anyio.sleep(delay)
-                for iteration in range(load.iterations):
-                    runner = ConversationRunner(
-                        server=server,
-                        model=model,
-                        conversation=conversation,
-                        scenario_name=self.scenario.name,
-                        user_id=user_id,
-                        iteration=iteration,
-                        think_time=load.think_time_seconds,
-                        on_result=collect,
-                    )
-                    tg.start_soon(runner.run)
+                tg.start_soon(self._run_user, server, model, conversation, load, user_id, collect)
 
         return results
+
+    async def _run_user(
+        self,
+        server: ServerConfig,
+        model: ModelConfig,
+        conversation: ConversationTemplate,
+        load: LoadConfig,
+        user_id: int,
+        on_result: ResultCallback,
+    ) -> None:
+        """Ramp-up delay + sequential iterations for one virtual user."""
+        if load.ramp_up_seconds and user_id > 0:
+            delay = load.ramp_up_seconds / load.concurrent_users * user_id
+            await anyio.sleep(delay)
+
+        for iteration in range(load.iterations):
+            runner = ConversationRunner(
+                server=server,
+                model=model,
+                conversation=conversation,
+                scenario_name=self.scenario.name,
+                user_id=user_id,
+                iteration=iteration,
+                think_time=load.think_time_seconds,
+                on_result=on_result,
+            )
+            await runner.run()
 
 
 class BenchmarkRunner:
@@ -158,4 +185,5 @@ class BenchmarkRunner:
             all_results.extend(results)
 
         total_duration = time.perf_counter() - t_start
+        logger.info("Benchmark complete in %.1fs, %d requests", total_duration, len(all_results))
         return all_results, total_duration

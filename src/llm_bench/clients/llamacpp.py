@@ -2,20 +2,22 @@
 
 from __future__ import annotations
 
-from llm_bench.config import ServerConfig
+import logging
 
-from .base import BaseClient
+from .base import BaseClient, _HEALTH_TIMEOUT
+from .prometheus import parse_prometheus
+
+logger = logging.getLogger(__name__)
 
 
 class LlamaCppClient(BaseClient):
-    def __init__(self, server: ServerConfig) -> None:
-        super().__init__(server)
-
     async def health(self) -> bool:
+        """llama-server returns JSON body with a 'status' field."""
         try:
-            resp = await self._http.get("/health")
+            resp = await self._http.get("/health", timeout=_HEALTH_TIMEOUT)
             return resp.status_code == 200 and resp.json().get("status") == "ok"
         except Exception:
+            logger.debug("Health check failed for %s", self.server.name, exc_info=True)
             return False
 
     async def backend_metrics(self) -> dict:
@@ -24,21 +26,9 @@ class LlamaCppClient(BaseClient):
             resp = await self._http.get("/metrics")
             if resp.status_code != 200:
                 return {}
-            return _parse_llamacpp_prometheus(resp.text)
+            return parse_prometheus(resp.text)
         except Exception:
+            logger.debug(
+                "Failed to fetch llama.cpp metrics for %s", self.server.name, exc_info=True
+            )
             return {}
-
-
-def _parse_llamacpp_prometheus(text: str) -> dict:
-    result: dict = {}
-    for line in text.splitlines():
-        if line.startswith("#"):
-            continue
-        parts = line.rsplit(" ", 1)
-        if len(parts) == 2:
-            key = parts[0].strip()
-            try:
-                result[key] = float(parts[1])
-            except ValueError:
-                pass
-    return result

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -12,7 +13,13 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 from llm_bench import __version__
 from llm_bench.clients import get_client
-from llm_bench.metrics import RequestMetrics, aggregate, aggregate_conversations
+from llm_bench.metrics import (
+    RequestMetrics,
+    aggregate,
+    aggregate_conversations,
+    estimate_total_duration,
+    group_by_target,
+)
 from llm_bench.report import (
     JsonlWriter,
     export_csv,
@@ -39,11 +46,24 @@ def version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
+def verbose_callback(value: bool) -> None:
+    if value:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(levelname)s %(name)s — %(message)s",
+        )
+
+
 @app.callback()
 def main(
     _version: Annotated[
         Optional[bool],
         typer.Option("--version", "-V", callback=version_callback, is_eager=True),
+    ] = None,
+    _verbose: Annotated[
+        Optional[bool],
+        typer.Option("--verbose", "-v", callback=verbose_callback, is_eager=True,
+                     help="Enable debug logging"),
     ] = None,
 ) -> None:
     pass
@@ -211,12 +231,8 @@ def report(
         err_console.print("Results file is empty.")
         raise typer.Exit(1)
 
-    groups: dict[tuple[str, str], list[RequestMetrics]] = {}
-    for r in results:
-        key = (r.target_server, r.target_model)
-        groups.setdefault(key, []).append(r)
-
-    total_duration = max((r.e2e_latency_s for r in results), default=1.0)
+    groups = group_by_target(results)
+    total_duration = estimate_total_duration(results)
     aggregations = [aggregate(v, total_duration) for v in groups.values()]
     conv_metrics = aggregate_conversations(results)
 
@@ -241,10 +257,7 @@ def _print_results(
 ) -> None:
     if quiet or not results:
         return
-    groups: dict[tuple[str, str], list[RequestMetrics]] = {}
-    for r in results:
-        groups.setdefault((r.target_server, r.target_model), []).append(r)
-    aggregations = [aggregate(v, total_duration) for v in groups.values()]
+    aggregations = [aggregate(v, total_duration) for v in group_by_target(results).values()]
     conv_metrics = aggregate_conversations(results)
     print_summary_table(aggregations)
     if conv_metrics:

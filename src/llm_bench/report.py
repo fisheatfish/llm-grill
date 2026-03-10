@@ -20,20 +20,22 @@ class JsonlWriter:
 
     def __init__(self, path: Path) -> None:
         self.path = path
-        self._fh = path.open("w", encoding="utf-8")
-
-    def write(self, m: RequestMetrics) -> None:
-        self._fh.write(m.to_jsonl() + "\n")
-        self._fh.flush()
-
-    def close(self) -> None:
-        self._fh.close()
+        self._fh: object = None
 
     def __enter__(self) -> JsonlWriter:
+        self._fh = self.path.open("w", encoding="utf-8")
         return self
 
     def __exit__(self, *_: object) -> None:
-        self.close()
+        if self._fh is not None:
+            self._fh.close()  # type: ignore[union-attr]
+            self._fh = None
+
+    def write(self, m: RequestMetrics) -> None:
+        if self._fh is None:
+            raise RuntimeError("JsonlWriter must be used as a context manager")
+        self._fh.write(m.to_jsonl() + "\n")  # type: ignore[union-attr]
+        self._fh.flush()  # type: ignore[union-attr]
 
 
 def load_jsonl(path: Path) -> list[RequestMetrics]:
@@ -46,12 +48,19 @@ def load_jsonl(path: Path) -> list[RequestMetrics]:
 
 
 def export_csv(results: list[RequestMetrics], path: Path) -> None:
-    """Export results to CSV (flattens backend_metrics)."""
+    """Export results to CSV (flattens backend_metrics).
+
+    Uses the union of all row keys as columns so that heterogeneous
+    backend_metrics across servers don't silently drop values.
+    """
     if not results:
         return
     rows = [_flatten(asdict(r)) for r in results]
+    all_keys: dict[str, None] = {}  # ordered set via insertion order
+    for row in rows:
+        all_keys.update(dict.fromkeys(row.keys()))
     with path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+        writer = csv.DictWriter(f, fieldnames=list(all_keys), restval="")
         writer.writeheader()
         writer.writerows(rows)
 

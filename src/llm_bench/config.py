@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, HttpUrl, PositiveFloat, PositiveInt, model_validator
 
@@ -32,7 +32,7 @@ class ModelConfig(BaseModel):
 
 
 class Message(BaseModel):
-    role: str
+    role: Literal["system", "user", "assistant"]
     content: str
 
 
@@ -51,8 +51,8 @@ class ConversationTemplate(BaseModel):
 class LoadConfig(BaseModel):
     concurrent_users: PositiveInt = 1
     iterations: PositiveInt = 1
-    ramp_up_seconds: float = 0.0
-    think_time_seconds: float = 0.0
+    ramp_up_seconds: Annotated[float, Field(ge=0.0)] = 0.0
+    think_time_seconds: Annotated[float, Field(ge=0.0)] = 0.0
 
 
 class BenchmarkTarget(BaseModel):
@@ -69,6 +69,27 @@ class ScenarioConfig(BaseModel):
     conversations: list[ConversationTemplate]
     targets: list[BenchmarkTarget]
     load: LoadConfig = Field(default_factory=LoadConfig)
+
+    @model_validator(mode="after")
+    def validate_target_references(self) -> ScenarioConfig:
+        server_names = {s.name for s in self.servers}
+        model_names = {m.name for m in self.models}
+        conv_names = {c.name for c in self.conversations}
+        for t in self.targets:
+            if t.server not in server_names:
+                raise ValueError(
+                    f"Target references unknown server '{t.server}'. Available: {sorted(server_names)}"
+                )
+            if t.model not in model_names:
+                raise ValueError(
+                    f"Target references unknown model '{t.model}'. Available: {sorted(model_names)}"
+                )
+            if t.conversation not in conv_names:
+                raise ValueError(
+                    f"Target references unknown conversation '{t.conversation}'. "
+                    f"Available: {sorted(conv_names)}"
+                )
+        return self
 
     def get_server(self, name: str) -> ServerConfig:
         for s in self.servers:
