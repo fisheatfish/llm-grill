@@ -12,12 +12,13 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 from llm_bench import __version__
 from llm_bench.clients import get_client
-from llm_bench.metrics import RequestMetrics, aggregate
+from llm_bench.metrics import RequestMetrics, aggregate, aggregate_conversations
 from llm_bench.report import (
     JsonlWriter,
     export_csv,
     load_jsonl,
     print_aggregated_json,
+    print_conversation_table,
     print_summary_table,
 )
 from llm_bench.runner import BenchmarkRunner
@@ -102,7 +103,6 @@ def run(
             bench = BenchmarkRunner(cfg, on_result)
             _, total_duration = anyio.run(bench.run)
 
-    # aggregate per (server, model) pair
     _print_results(all_results, total_duration, quiet)
 
     if format == "csv":
@@ -197,6 +197,9 @@ def report(
         str, typer.Option("--format", "-f", help="Output format: table | json | csv")
     ] = "table",
     output: Annotated[Optional[Path], typer.Option("--output", "-o")] = None,
+    no_conversations: Annotated[
+        bool, typer.Option("--no-conversations", help="Hide conversation metrics table")
+    ] = False,
 ) -> None:
     """Generate a report from a JSONL results file."""
     if not results_file.exists():
@@ -208,7 +211,6 @@ def report(
         err_console.print("Results file is empty.")
         raise typer.Exit(1)
 
-    # group by (server, model)
     groups: dict[tuple[str, str], list[RequestMetrics]] = {}
     for r in results:
         key = (r.target_server, r.target_model)
@@ -216,11 +218,14 @@ def report(
 
     total_duration = max((r.e2e_latency_s for r in results), default=1.0)
     aggregations = [aggregate(v, total_duration) for v in groups.values()]
+    conv_metrics = aggregate_conversations(results)
 
     if format == "table":
         print_summary_table(aggregations)
+        if not no_conversations and conv_metrics:
+            print_conversation_table(conv_metrics)
     elif format == "json":
-        print_aggregated_json(aggregations)
+        print_aggregated_json(aggregations, conv_metrics)
     elif format == "csv":
         out = output or results_file.with_suffix(".summary.csv")
         export_csv(results, out)
@@ -240,4 +245,7 @@ def _print_results(
     for r in results:
         groups.setdefault((r.target_server, r.target_model), []).append(r)
     aggregations = [aggregate(v, total_duration) for v in groups.values()]
+    conv_metrics = aggregate_conversations(results)
     print_summary_table(aggregations)
+    if conv_metrics:
+        print_conversation_table(conv_metrics)

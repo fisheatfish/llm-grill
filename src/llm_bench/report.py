@@ -10,7 +10,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 
-from llm_bench.metrics import AggregatedMetrics, RequestMetrics
+from llm_bench.metrics import AggregatedMetrics, ConversationMetrics, RequestMetrics
 
 console = Console()
 
@@ -85,8 +85,45 @@ def print_summary_table(aggregations: list[AggregatedMetrics]) -> None:
     console.print(table)
 
 
-def print_aggregated_json(aggregations: list[AggregatedMetrics]) -> None:
-    data = [a.to_dict() for a in aggregations]
+def print_conversation_table(conv_metrics: list[ConversationMetrics]) -> None:
+    """Render a Rich table for conversation-level KV cache and latency metrics."""
+    table = Table(title="Conversation Quality Metrics", show_lines=True)
+    table.add_column("Server", style="cyan")
+    table.add_column("Conversation", style="yellow")
+    table.add_column("Turn→Turn ratio", justify="right")
+    table.add_column("Context growth", justify="right")
+    table.add_column("KV cache hit %", justify="right")
+    table.add_column("KV cache usage %", justify="right")
+    table.add_column("TTFT by turn (ms)", justify="left")
+
+    for c in conv_metrics:
+        ratio = f"{c.turn_to_turn_ratio:.2f}" if c.turn_to_turn_ratio is not None else "—"
+        growth = f"{c.context_growth_factor:.2f}x" if c.context_growth_factor is not None else "—"
+        hit = f"{c.kv_cache_hit_rate_mean * 100:.1f}%" if c.kv_cache_hit_rate_mean is not None else "—"
+        usage = f"{c.kv_cache_usage_mean * 100:.1f}%" if c.kv_cache_usage_mean is not None else "—"
+        ttft_turns = "  ".join(
+            f"T{t}={v * 1000:.0f}" for t, v in sorted(c.ttft_by_turn.items())
+        )
+        table.add_row(
+            c.target_server,
+            c.conversation,
+            ratio,
+            growth,
+            hit,
+            usage,
+            ttft_turns,
+        )
+
+    console.print(table)
+
+
+def print_aggregated_json(
+    aggregations: list[AggregatedMetrics],
+    conv_metrics: list[ConversationMetrics] | None = None,
+) -> None:
+    data: dict = {"summary": [a.to_dict() for a in aggregations]}
+    if conv_metrics:
+        data["conversations"] = [c.to_dict() for c in conv_metrics]
     console.print_json(json.dumps(data))
 
 

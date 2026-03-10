@@ -9,6 +9,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-03-10
+
+### Added
+- `ConversationMetrics` dataclass — per-conversation quality metrics
+- `aggregate_conversations()` — groups results by (server, model, conversation) and computes:
+  - **Turn-to-Turn Latency Ratio** — mean(TTFT turn > 0) / mean(TTFT turn 0); < 1 indicates KV cache benefit
+  - **Context Growth Factor** — mean(E2E last turn) / mean(E2E first turn); > 1 indicates latency increase with context
+  - **KV Cache Hit Rate** — averaged from SGLang `/get_server_info` (`cache_hit_rate`)
+  - **KV Cache Usage** — averaged from vLLM `/metrics` (`vllm:gpu_cache_usage_perc`)
+- `print_conversation_table()` in `report.py` — Rich table for conversation metrics
+- `llm-bench report --no-conversations` flag to hide conversation metrics table
+- `--format json` now includes both `summary` and `conversations` sections
+- Fixed invalid TOML syntax in `pyproject.toml` authors field
+
 ## [0.1.0] - 2026-03-10
 
 ### Added
