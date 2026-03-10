@@ -78,9 +78,7 @@ def main(
 @app.command()
 def run(
     scenario: Annotated[Path, typer.Argument(help="Path to YAML scenario file")],
-    output: Annotated[
-        Path | None, typer.Option("--output", "-o", help="Output JSONL file")
-    ] = None,
+    output: Annotated[Path | None, typer.Option("--output", "-o", help="Output JSONL file")] = None,
     format: Annotated[
         str, typer.Option("--format", "-f", help="Output format: jsonl | csv")
     ] = "jsonl",
