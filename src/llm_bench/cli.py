@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import anyio
 import typer
@@ -12,12 +13,20 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 from llm_bench import __version__
 from llm_bench.clients import get_client
-from llm_bench.metrics import RequestMetrics, aggregate
+from llm_bench.metrics import (
+    RequestMetrics,
+    aggregate,
+    aggregate_conversations,
+    estimate_total_duration,
+    group_by_target,
+)
 from llm_bench.report import (
     JsonlWriter,
+    console,
     export_csv,
     load_jsonl,
     print_aggregated_json,
+    print_conversation_table,
     print_summary_table,
 )
 from llm_bench.runner import BenchmarkRunner
@@ -28,7 +37,6 @@ app = typer.Typer(
     help="Benchmark LLM inference servers (vLLM, SGLang, llama.cpp, LiteLLM).",
     add_completion=False,
 )
-console = Console()
 err_console = Console(stderr=True, style="bold red")
 
 
@@ -38,11 +46,25 @@ def version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
+def verbose_callback(value: bool) -> None:
+    if value:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(levelname)s %(name)s — %(message)s",
+        )
+
+
 @app.callback()
 def main(
     _version: Annotated[
-        Optional[bool],
+        bool | None,
         typer.Option("--version", "-V", callback=version_callback, is_eager=True),
+    ] = None,
+    _verbose: Annotated[
+        bool | None,
+        typer.Option(
+            "--verbose", "-v", callback=verbose_callback, is_eager=True, help="Enable debug logging"
+        ),
     ] = None,
 ) -> None:
     pass
@@ -52,12 +74,11 @@ def main(
 # llm-bench run
 # ---------------------------------------------------------------------------
 
+
 @app.command()
 def run(
     scenario: Annotated[Path, typer.Argument(help="Path to YAML scenario file")],
-    output: Annotated[
-        Optional[Path], typer.Option("--output", "-o", help="Output JSONL file")
-    ] = None,
+    output: Annotated[Path | None, typer.Option("--output", "-o", help="Output JSONL file")] = None,
     format: Annotated[
         str, typer.Option("--format", "-f", help="Output format: jsonl | csv")
     ] = "jsonl",
@@ -94,15 +115,13 @@ def run(
                 progress.update(
                     task_id,
                     description=(
-                        f"{status} {m.target_server} | turn={m.turn} "
-                        f"TTFT={m.ttft_s * 1000:.0f}ms"
+                        f"{status} {m.target_server} | turn={m.turn} TTFT={m.ttft_s * 1000:.0f}ms"
                     ),
                 )
 
             bench = BenchmarkRunner(cfg, on_result)
             _, total_duration = anyio.run(bench.run)
 
-    # aggregate per (server, model) pair
     _print_results(all_results, total_duration, quiet)
 
     if format == "csv":
@@ -117,6 +136,7 @@ def run(
 # ---------------------------------------------------------------------------
 # llm-bench ping
 # ---------------------------------------------------------------------------
+
 
 @app.command()
 def ping(
@@ -143,6 +163,7 @@ def ping(
 # ---------------------------------------------------------------------------
 # llm-bench show-scenario
 # ---------------------------------------------------------------------------
+
 
 @app.command(name="show-scenario")
 def show_scenario(
@@ -190,13 +211,17 @@ def show_scenario(
 # llm-bench report
 # ---------------------------------------------------------------------------
 
+
 @app.command()
 def report(
     results_file: Annotated[Path, typer.Argument(help="JSONL results file")],
     format: Annotated[
         str, typer.Option("--format", "-f", help="Output format: table | json | csv")
     ] = "table",
-    output: Annotated[Optional[Path], typer.Option("--output", "-o")] = None,
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+    no_conversations: Annotated[
+        bool, typer.Option("--no-conversations", help="Hide conversation metrics table")
+    ] = False,
 ) -> None:
     """Generate a report from a JSONL results file."""
     if not results_file.exists():
@@ -208,19 +233,17 @@ def report(
         err_console.print("Results file is empty.")
         raise typer.Exit(1)
 
-    # group by (server, model)
-    groups: dict[tuple[str, str], list[RequestMetrics]] = {}
-    for r in results:
-        key = (r.target_server, r.target_model)
-        groups.setdefault(key, []).append(r)
-
-    total_duration = max((r.e2e_latency_s for r in results), default=1.0)
+    groups = group_by_target(results)
+    total_duration = estimate_total_duration(results)
     aggregations = [aggregate(v, total_duration) for v in groups.values()]
+    conv_metrics = aggregate_conversations(results)
 
     if format == "table":
         print_summary_table(aggregations)
+        if not no_conversations and conv_metrics:
+            print_conversation_table(conv_metrics)
     elif format == "json":
-        print_aggregated_json(aggregations)
+        print_aggregated_json(aggregations, conv_metrics)
     elif format == "csv":
         out = output or results_file.with_suffix(".summary.csv")
         export_csv(results, out)
@@ -231,13 +254,12 @@ def report(
 # helpers
 # ---------------------------------------------------------------------------
 
-def _print_results(
-    results: list[RequestMetrics], total_duration: float, quiet: bool
-) -> None:
+
+def _print_results(results: list[RequestMetrics], total_duration: float, quiet: bool) -> None:
     if quiet or not results:
         return
-    groups: dict[tuple[str, str], list[RequestMetrics]] = {}
-    for r in results:
-        groups.setdefault((r.target_server, r.target_model), []).append(r)
-    aggregations = [aggregate(v, total_duration) for v in groups.values()]
+    aggregations = [aggregate(v, total_duration) for v in group_by_target(results).values()]
+    conv_metrics = aggregate_conversations(results)
     print_summary_table(aggregations)
+    if conv_metrics:
+        print_conversation_table(conv_metrics)

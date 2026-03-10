@@ -10,7 +10,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 
-from llm_bench.metrics import AggregatedMetrics, RequestMetrics
+from llm_bench.metrics import AggregatedMetrics, ConversationMetrics, RequestMetrics
 
 console = Console()
 
@@ -20,20 +20,22 @@ class JsonlWriter:
 
     def __init__(self, path: Path) -> None:
         self.path = path
-        self._fh = path.open("w", encoding="utf-8")
-
-    def write(self, m: RequestMetrics) -> None:
-        self._fh.write(m.to_jsonl() + "\n")
-        self._fh.flush()
-
-    def close(self) -> None:
-        self._fh.close()
+        self._fh: object = None
 
     def __enter__(self) -> JsonlWriter:
+        self._fh = self.path.open("w", encoding="utf-8")
         return self
 
     def __exit__(self, *_: object) -> None:
-        self.close()
+        if self._fh is not None:
+            self._fh.close()  # type: ignore[union-attr]
+            self._fh = None
+
+    def write(self, m: RequestMetrics) -> None:
+        if self._fh is None:
+            raise RuntimeError("JsonlWriter must be used as a context manager")
+        self._fh.write(m.to_jsonl() + "\n")  # type: ignore[union-attr]
+        self._fh.flush()  # type: ignore[union-attr]
 
 
 def load_jsonl(path: Path) -> list[RequestMetrics]:
@@ -46,12 +48,19 @@ def load_jsonl(path: Path) -> list[RequestMetrics]:
 
 
 def export_csv(results: list[RequestMetrics], path: Path) -> None:
-    """Export results to CSV (flattens backend_metrics)."""
+    """Export results to CSV (flattens backend_metrics).
+
+    Uses the union of all row keys as columns so that heterogeneous
+    backend_metrics across servers don't silently drop values.
+    """
     if not results:
         return
     rows = [_flatten(asdict(r)) for r in results]
+    all_keys: dict[str, None] = {}  # ordered set via insertion order
+    for row in rows:
+        all_keys.update(dict.fromkeys(row.keys()))
     with path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+        writer = csv.DictWriter(f, fieldnames=list(all_keys), restval="")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -85,8 +94,47 @@ def print_summary_table(aggregations: list[AggregatedMetrics]) -> None:
     console.print(table)
 
 
-def print_aggregated_json(aggregations: list[AggregatedMetrics]) -> None:
-    data = [a.to_dict() for a in aggregations]
+def print_conversation_table(conv_metrics: list[ConversationMetrics]) -> None:
+    """Render a Rich table for conversation-level KV cache and latency metrics."""
+    table = Table(title="Conversation Quality Metrics", show_lines=True)
+    table.add_column("Server", style="cyan")
+    table.add_column("Conversation", style="yellow")
+    table.add_column("Turn→Turn ratio", justify="right")
+    table.add_column("Context growth", justify="right")
+    table.add_column("KV cache hit %", justify="right")
+    table.add_column("KV cache usage %", justify="right")
+    table.add_column("TTFT by turn (ms)", justify="left")
+
+    for c in conv_metrics:
+        ratio = f"{c.turn_to_turn_ratio:.2f}" if c.turn_to_turn_ratio is not None else "—"
+        growth = f"{c.context_growth_factor:.2f}x" if c.context_growth_factor is not None else "—"
+        hit = (
+            f"{c.kv_cache_hit_rate_mean * 100:.1f}%"
+            if c.kv_cache_hit_rate_mean is not None
+            else "—"
+        )
+        usage = f"{c.kv_cache_usage_mean * 100:.1f}%" if c.kv_cache_usage_mean is not None else "—"
+        ttft_turns = "  ".join(f"T{t}={v * 1000:.0f}" for t, v in sorted(c.ttft_by_turn.items()))
+        table.add_row(
+            c.target_server,
+            c.conversation,
+            ratio,
+            growth,
+            hit,
+            usage,
+            ttft_turns,
+        )
+
+    console.print(table)
+
+
+def print_aggregated_json(
+    aggregations: list[AggregatedMetrics],
+    conv_metrics: list[ConversationMetrics] | None = None,
+) -> None:
+    data: dict = {"summary": [a.to_dict() for a in aggregations]}
+    if conv_metrics:
+        data["conversations"] = [c.to_dict() for c in conv_metrics]
     console.print_json(json.dumps(data))
 
 

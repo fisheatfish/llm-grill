@@ -56,6 +56,54 @@ class AggregatedMetrics:
         return asdict(self)
 
 
+@dataclass
+class ConversationMetrics:
+    """Per-conversation quality metrics: KV cache, turn-to-turn latency, context growth."""
+
+    scenario: str
+    target_server: str
+    target_model: str
+    conversation: str
+    ttft_by_turn: dict[int, float]  # turn index -> mean TTFT (s)
+    e2e_by_turn: dict[int, float]  # turn index -> mean E2E latency (s)
+    turn_to_turn_ratio: float | None  # mean(TTFT turn>0) / mean(TTFT turn=0)
+    context_growth_factor: float | None  # mean(E2E last turn) / mean(E2E first turn)
+    kv_cache_hit_rate_mean: float | None  # SGLang: cache_hit_rate averaged across requests
+    kv_cache_usage_mean: float | None  # vLLM: gpu_cache_usage_perc averaged across requests
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+# ---------------------------------------------------------------------------
+# Aggregation
+# ---------------------------------------------------------------------------
+
+
+def group_by_target(
+    results: list[RequestMetrics],
+) -> dict[tuple[str, str], list[RequestMetrics]]:
+    """Group results by (target_server, target_model)."""
+    groups: dict[tuple[str, str], list[RequestMetrics]] = {}
+    for r in results:
+        groups.setdefault((r.target_server, r.target_model), []).append(r)
+    return groups
+
+
+def estimate_total_duration(results: list[RequestMetrics]) -> float:
+    """Estimate benchmark wall-clock duration from request timestamps and E2E latencies.
+
+    More accurate than max(e2e_latency) when requests ran concurrently.
+    Falls back to 1.0 if results is empty.
+    """
+    if not results:
+        return 1.0
+    starts = [datetime.fromisoformat(r.timestamp_start).timestamp() for r in results]
+    ends = [s + r.e2e_latency_s for s, r in zip(starts, results)]
+    duration = max(ends) - min(starts)
+    return duration if duration > 0 else 1.0
+
+
 def aggregate(results: list[RequestMetrics], total_duration_s: float) -> AggregatedMetrics:
     if not results:
         raise ValueError("No results to aggregate")
@@ -63,11 +111,6 @@ def aggregate(results: list[RequestMetrics], total_duration_s: float) -> Aggrega
     successful = [r for r in results if r.success]
     n = len(results)
     n_ok = len(successful)
-
-    def _p95(values: list[float]) -> float:
-        if len(values) < 2:
-            return values[0] if values else 0.0
-        return quantiles(values, n=20)[18]  # 95th percentile
 
     ttft_vals = [r.ttft_s for r in successful] or [0.0]
     tpot_vals = [r.tpot_s for r in successful] or [0.0]
@@ -94,3 +137,84 @@ def aggregate(results: list[RequestMetrics], total_duration_s: float) -> Aggrega
         requests_per_second=n_ok / total_duration_s if total_duration_s else 0.0,
         total_duration_s=total_duration_s,
     )
+
+
+def aggregate_conversations(results: list[RequestMetrics]) -> list[ConversationMetrics]:
+    """Group results by (server, model, conversation) and compute conversation-level metrics."""
+    groups: dict[tuple[str, str, str], list[RequestMetrics]] = {}
+    for r in results:
+        key = (r.target_server, r.target_model, r.conversation)
+        groups.setdefault(key, []).append(r)
+
+    return [_compute_conversation_metrics(group) for group in groups.values()]
+
+
+def _compute_conversation_metrics(results: list[RequestMetrics]) -> ConversationMetrics:
+    successful = [r for r in results if r.success]
+    turns = sorted({r.turn for r in successful})
+
+    ttft_by_turn = {t: mean(r.ttft_s for r in successful if r.turn == t) for t in turns}
+    e2e_by_turn = {t: mean(r.e2e_latency_s for r in successful if r.turn == t) for t in turns}
+
+    turn_to_turn_ratio = _turn_to_turn_ratio(ttft_by_turn)
+    context_growth_factor = _context_growth_factor(e2e_by_turn)
+    kv_cache_hit_rate_mean = _extract_backend_metric(successful, ["cache_hit_rate"])
+    kv_cache_usage_mean = _extract_backend_metric(successful, ["vllm:gpu_cache_usage_perc"])
+
+    r0 = results[0]
+    return ConversationMetrics(
+        scenario=r0.scenario,
+        target_server=r0.target_server,
+        target_model=r0.target_model,
+        conversation=r0.conversation,
+        ttft_by_turn=ttft_by_turn,
+        e2e_by_turn=e2e_by_turn,
+        turn_to_turn_ratio=turn_to_turn_ratio,
+        context_growth_factor=context_growth_factor,
+        kv_cache_hit_rate_mean=kv_cache_hit_rate_mean,
+        kv_cache_usage_mean=kv_cache_usage_mean,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _p95(values: list[float]) -> float:
+    if len(values) < 2:
+        return values[0] if values else 0.0
+    return quantiles(values, n=20)[18]
+
+
+def _turn_to_turn_ratio(ttft_by_turn: dict[int, float]) -> float | None:
+    """Ratio of mean TTFT for turns > 0 vs turn 0. < 1 means cache helps."""
+    t0 = ttft_by_turn.get(0)
+    later = [v for k, v in ttft_by_turn.items() if k > 0]
+    if t0 is None or not later or t0 == 0:
+        return None
+    return mean(later) / t0
+
+
+def _context_growth_factor(e2e_by_turn: dict[int, float]) -> float | None:
+    """Ratio of last turn E2E vs first turn E2E. > 1 means latency grows with context."""
+    if len(e2e_by_turn) < 2:
+        return None
+    first = e2e_by_turn[min(e2e_by_turn)]
+    last = e2e_by_turn[max(e2e_by_turn)]
+    return last / first if first else None
+
+
+def _extract_backend_metric(results: list[RequestMetrics], keys: list[str]) -> float | None:
+    """Average a backend_metrics field across requests, trying each key in order."""
+    values: list[float] = []
+    for r in results:
+        for key in keys:
+            val = r.backend_metrics.get(key)
+            if val is not None:
+                try:
+                    values.append(float(val))
+                except (TypeError, ValueError):
+                    pass
+                break
+    return mean(values) if values else None

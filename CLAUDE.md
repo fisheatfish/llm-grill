@@ -71,7 +71,7 @@ make clean        # supprime dist/ __pycache__ .pytest_cache
 ## Commandes CLI
 
 ```bash
-llm-bench run --scenario scenarios/foo.yaml [--output results.jsonl] [--format jsonl|csv]
+llm-bench run scenarios/foo.yaml [--output results.jsonl] [--format jsonl|csv] [--verbose]
 llm-bench ping --scenario scenarios/foo.yaml
 llm-bench show-scenario scenarios/foo.yaml
 llm-bench report results.jsonl [--format csv|table]
@@ -148,8 +148,8 @@ Lecture polars : `pl.read_ndjson("results.jsonl")`
 
 Chaque client hérite de `BaseClient` (ABC) et implémente :
 
-- `chat_stream(messages, model_config) -> AsyncIterator[str]` — stream SSE, mesure TTFT
-- `health() -> bool` — vérification connectivité
+- `complete(messages, model_config) -> StreamResult` — stream SSE, mesure TTFT/TPOT/E2E
+- `health() -> bool` — vérification connectivité (timeout court : 10s)
 - `backend_metrics() -> dict` — métriques propriétaires (Prometheus scrape pour vLLM/SGLang)
 
 La mesure TTFT se fait côté client :

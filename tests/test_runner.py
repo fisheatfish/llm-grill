@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -24,6 +24,7 @@ def _mock_stream_result() -> StreamResult:
     )
 
 
+@pytest.mark.asyncio
 class TestConversationRunner:
     async def test_single_turn_produces_metric(
         self,
@@ -98,6 +99,7 @@ class TestConversationRunner:
         assert "connection refused" in collected[0].error
 
 
+@pytest.mark.asyncio
 class TestBenchmarkRunner:
     async def test_run_collects_all_results(
         self,
@@ -126,7 +128,9 @@ class TestBenchmarkRunner:
         mocker,
     ) -> None:
         """With 3 concurrent users × 2 iterations, expect 6 results."""
-        scenario.load = LoadConfig(concurrent_users=3, iterations=2)
+        local_scenario = scenario.model_copy(
+            update={"load": LoadConfig(concurrent_users=3, iterations=2)}
+        )
         collected: list[RequestMetrics] = []
 
         mock_client = AsyncMock()
@@ -137,7 +141,7 @@ class TestBenchmarkRunner:
 
         mocker.patch("llm_bench.runner.get_client", return_value=mock_client)
 
-        bench = BenchmarkRunner(scenario, on_result=collected.append)
+        bench = BenchmarkRunner(local_scenario, on_result=collected.append)
         results, _ = await bench.run()
 
         assert len(results) == 6

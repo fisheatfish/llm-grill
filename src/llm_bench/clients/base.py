@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
 import httpx
 
 from llm_bench.config import Message, ModelConfig, ServerConfig
+
+logger = logging.getLogger(__name__)
+
+_HEALTH_TIMEOUT = 10.0  # seconds — shorter than inference timeout
 
 
 @dataclass
@@ -28,7 +32,9 @@ class BaseClient(ABC):
     def __init__(self, server: ServerConfig) -> None:
         self.server = server
         base = str(server.url).rstrip("/")
-        headers = {"Authorization": f"Bearer {server.api_key}"}
+        headers = {}
+        if server.api_key and server.api_key != "none":
+            headers["Authorization"] = f"Bearer {server.api_key}"
         self._http = httpx.AsyncClient(
             base_url=base,
             headers=headers,
@@ -41,32 +47,32 @@ class BaseClient(ABC):
     async def __aexit__(self, *_: object) -> None:
         await self._http.aclose()
 
-    async def close(self) -> None:
-        await self._http.aclose()
-
     # --- public interface ---
 
     async def complete(self, messages: list[Message], model: ModelConfig) -> StreamResult:
-        """Send a streaming chat completion and return measured metrics."""
+        """Send a streaming chat completion and measure TTFT/TPOT/E2E."""
         payload = self._build_payload(messages, model)
         content_parts: list[str] = []
         t0 = time.perf_counter()
         t_first: float | None = None
-        t_last = t0
         prompt_tokens = 0
         completion_tokens = 0
+
+        logger.debug("POST /v1/chat/completions server=%s model=%s", self.server.name, model.name)
 
         async with self._http.stream("POST", "/v1/chat/completions", json=payload) as resp:
             resp.raise_for_status()
             async for line in resp.aiter_lines():
                 if not line.startswith("data:"):
                     continue
-                raw = line[len("data:"):].strip()
+                raw = line[len("data:") :].strip()
                 if raw == "[DONE]":
-                    t_last = time.perf_counter()
                     break
-                chunk = json.loads(raw)
-                # extract usage if present (last chunk on some backends)
+                try:
+                    chunk = json.loads(raw)
+                except json.JSONDecodeError:
+                    logger.debug("Skipping malformed SSE chunk: %r", raw[:100])
+                    continue
                 if chunk.get("usage"):
                     prompt_tokens = chunk["usage"].get("prompt_tokens", 0)
                     completion_tokens = chunk["usage"].get("completion_tokens", 0)
@@ -77,14 +83,23 @@ class BaseClient(ABC):
                         t_first = time.perf_counter()
                     content_parts.append(token)
 
+        # Always record end time after the stream closes, even without [DONE]
+        t_last = time.perf_counter()
         t_first = t_first or t_last
         ttft = t_first - t0
         e2e = t_last - t0
-        decode_time = e2e - ttft
         if completion_tokens == 0:
             completion_tokens = len(content_parts)
-        tpot = decode_time / max(completion_tokens - 1, 1)
+        tpot = (e2e - ttft) / max(completion_tokens - 1, 1)
         tps = completion_tokens / e2e if e2e else 0.0
+
+        logger.debug(
+            "Done server=%s TTFT=%.3fs E2E=%.3fs tokens=%d",
+            self.server.name,
+            ttft,
+            e2e,
+            completion_tokens,
+        )
 
         return StreamResult(
             content="".join(content_parts),
@@ -96,9 +111,14 @@ class BaseClient(ABC):
             tokens_per_second=tps,
         )
 
-    @abstractmethod
     async def health(self) -> bool:
-        """Return True if the server is reachable and ready."""
+        """Return True if the server is reachable. Override for custom health checks."""
+        try:
+            resp = await self._http.get("/health", timeout=_HEALTH_TIMEOUT)
+            return resp.status_code == 200
+        except Exception:
+            logger.debug("Health check failed for %s", self.server.name, exc_info=True)
+            return False
 
     @abstractmethod
     async def backend_metrics(self) -> dict:
