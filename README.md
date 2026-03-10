@@ -4,16 +4,53 @@ CLI for benchmarking LLM inference servers: vLLM, SGLang, llama.cpp, LiteLLM.
 
 Measures **TTFT**, **TPOT**, **end-to-end latency**, **throughput**, and **success rate** on multi-turn conversation scenarios.
 
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
+[![CI](https://github.com/your-org/llm-bench/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/llm-bench/actions/workflows/ci.yml)
+
 ---
 
 ## Install
 
-Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
+Requires **Python 3.11+**.
+
+### From PyPI (recommended)
 
 ```bash
+pip install llm-bench
+```
+
+With [uv](https://docs.astral.sh/uv/) (faster):
+
+```bash
+# as a global tool
 uv tool install llm-bench
-# or in a project venv:
+
+# or inside a project
 uv add llm-bench
+```
+
+### From source
+
+```bash
+git clone https://github.com/your-org/llm-bench.git
+cd llm-bench
+pip install -e .
+```
+
+With uv:
+
+```bash
+git clone https://github.com/your-org/llm-bench.git
+cd llm-bench
+uv sync
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+```
+
+### Verify installation
+
+```bash
+llm-bench --version
 ```
 
 ---
