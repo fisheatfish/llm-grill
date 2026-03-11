@@ -136,6 +136,17 @@ The server is likely returning the full response at once (not streaming). Check 
 **All requests fail with `connection refused`**
 Run `llm-bench ping your-file.yaml` to diagnose per-server connectivity. Check URL and port in the scenario YAML.
 
+**`401 Unauthorized` on all requests**
+The server requires an API key. Set `api_key: ${MY_VAR}` in the scenario and export the variable before running:
+```bash
+export MY_VAR="sk-..."
+llm-bench run scenarios/my-scenario.yaml
+```
+If the variable is not set, the scenario will fail at load time with a `ValidationError` naming the missing variable.
+
+**`ping` times out on LiteLLM gateway**
+LiteLLM's `/health` endpoint performs live inference calls on all configured models and can exceed the 10 s timeout. `LiteLLMClient` falls back to `/health/liveliness` (process alive check) automatically. If ping still fails, verify the gateway URL and network access.
+
 **`anyio` task group errors with partial results**
 If one concurrent user fails with an unhandled exception, anyio cancels the whole group. Exceptions from `client.complete()` are caught in `ConversationRunner.run()` and recorded as failed metrics — they should not propagate. If they do, file a bug with the traceback.
 

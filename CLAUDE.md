@@ -87,7 +87,7 @@ description: string                 # optionnel
 servers:
   - name: string
     url: http://host:port           # base URL (sans /v1)
-    api_key: string                 # défaut "none"
+    api_key: string                 # "none" | clé littérale | ${ENV_VAR}
     backend: vllm|sglang|llamacpp|litellm|openai
     timeout: float                  # secondes, défaut 120
 models:

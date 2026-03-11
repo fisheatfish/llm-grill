@@ -156,8 +156,8 @@ description: Optional description
 servers:
   - name: gpu-vllm
     url: http://gpu-vllm:8000
-    api_key: none          # optional
-    backend: vllm          # vllm | sglang | llamacpp | litellm | openai
+    api_key: none                    # "none", a literal key, or ${ENV_VAR}
+    backend: vllm                    # vllm | sglang | llamacpp | litellm | openai
     timeout: 120.0
 
 models:
@@ -247,6 +247,59 @@ print(df.group_by("target_server").agg(pl.col("ttft_s").mean()))
 
 ---
 
+## API keys
+
+Set `api_key` to `${ENV_VAR}` to read the value from an environment variable at load time. The variable must be set when the command runs, or the scenario will fail to load with a clear error.
+
+```yaml
+servers:
+  - name: gateway
+    url: http://my-litellm-proxy:4000
+    api_key: ${LITELLM_API_KEY}
+    backend: litellm
+```
+
+```bash
+export LITELLM_API_KEY="sk-..."
+llm-bench run scenarios/my-scenario.yaml
+```
+
+Never commit literal API keys in scenario files.
+
+---
+
+## LiteLLM gateway routing
+
+When all backends are behind a LiteLLM proxy, define one server entry for the gateway and use **model aliases** (as configured in LiteLLM) to route to each backend:
+
+```yaml
+servers:
+  - name: gateway
+    url: http://my-litellm-proxy:4000
+    api_key: ${LITELLM_API_KEY}
+    backend: litellm
+
+models:
+  - name: devstral-small-llama    # LiteLLM alias → llama.cpp backend
+    max_tokens: 512
+    temperature: 0.0
+  - name: devstral-small-vllm     # LiteLLM alias → vLLM backend
+    max_tokens: 512
+    temperature: 0.0
+
+targets:
+  - server: gateway
+    model: devstral-small-llama
+    conversation: short-code-question
+  - server: gateway
+    model: devstral-small-vllm
+    conversation: short-code-question
+```
+
+The model name in each request determines which backend LiteLLM routes to. Aliases must match the `model_name` values in the LiteLLM `config.yaml`.
+
+---
+
 ## Scaleway example
 
-See `scenarios/scaleway-devstral.yaml` for a complete benchmark of Devstral-Small-2-24B across three backends (llama-server GGUF on L40S, vLLM BF16 on H100, SGLang BF16 on H100), including single-turn, multi-turn, and long-context scenarios.
+See `scenarios/scaleway-devstral.yaml` for a complete benchmark of Devstral-Small-2-24B across three backends (llama-server GGUF on L40S, vLLM BF16 on H100, SGLang BF16 on H100) via a LiteLLM gateway, including single-turn, multi-turn, and long-context scenarios.
