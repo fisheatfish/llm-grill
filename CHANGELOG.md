@@ -9,6 +9,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-03-11
+
+### Fixed
+- `BaseClient.complete()` : crash `list index out of range` sur les chunks SSE avec `choices: []` — llama-server envoie ce chunk en fin de stream avant `[DONE]` ; la gateway LiteLLM le filtrait silencieusement, masquant le bug en accès indirect
+
 ## [0.4.0] - 2026-03-11
 
 ### Added

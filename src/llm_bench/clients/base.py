@@ -76,7 +76,8 @@ class BaseClient(ABC):
                 if chunk.get("usage"):
                     prompt_tokens = chunk["usage"].get("prompt_tokens", 0)
                     completion_tokens = chunk["usage"].get("completion_tokens", 0)
-                delta = chunk.get("choices", [{}])[0].get("delta", {})
+                choices = chunk.get("choices") or []
+                delta = choices[0].get("delta", {}) if choices else {}
                 token = delta.get("content") or ""
                 if token:
                     if t_first is None:
