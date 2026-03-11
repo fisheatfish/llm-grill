@@ -159,7 +159,9 @@ def _compute_conversation_metrics(results: list[RequestMetrics]) -> Conversation
     turn_to_turn_ratio = _turn_to_turn_ratio(ttft_by_turn)
     context_growth_factor = _context_growth_factor(e2e_by_turn)
     kv_cache_hit_rate_mean = _extract_backend_metric(successful, ["cache_hit_rate"])
-    kv_cache_usage_mean = _extract_backend_metric(successful, ["vllm:gpu_cache_usage_perc"])
+    kv_cache_usage_mean = _extract_backend_metric(
+        successful, ["vllm:kv_cache_usage_perc", "vllm:gpu_cache_usage_perc", "kv_cache_usage"]
+    )
 
     r0 = results[0]
     return ConversationMetrics(

@@ -9,6 +9,37 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-03-11
+
+### Fixed
+- `SglangClient.backend_metrics()` : `kvcache` désormais extrait récursivement dans la réponse imbriquée de `/get_server_info` (la valeur n'était pas au niveau racine) ; normalisé de 0-100 vers 0-1 pour cohérence avec vLLM
+- `VllmClient.backend_metrics()` : métrique renommée `vllm:gpu_cache_usage_perc` → `vllm:kv_cache_usage_perc` dans vLLM >= 0.4 — les deux noms sont maintenant supportés (fallback sur l'ancien nom pour rétrocompatibilité)
+
+### Added
+- **KV cache hit rate pour vLLM** : calculé depuis les counters Prometheus `prefix_cache_hits_total / prefix_cache_queries_total` — disponible sans configuration supplémentaire si `enable_prefix_caching=True`
+- **KV cache hit rate pour SGLang** : extraction de `cache_hit_rate` depuis `/get_server_info` — nécessite `--enable-cache-report` au démarrage du serveur SGLang
+- `metrics.py` : `kv_cache_usage_mean` cherche successivement `vllm:kv_cache_usage_perc`, `vllm:gpu_cache_usage_perc`, `kv_cache_usage` (SGLang)
+
+## [0.4.1] - 2026-03-11
+
+### Fixed
+- `BaseClient.complete()` : crash `list index out of range` sur les chunks SSE avec `choices: []` — llama-server envoie ce chunk en fin de stream avant `[DONE]` ; la gateway LiteLLM le filtrait silencieusement, masquant le bug en accès indirect
+
+## [0.4.0] - 2026-03-11
+
+### Added
+- `api_key` dans `ServerConfig` supporte la syntaxe `${VAR_NAME}` — la variable d'environnement est résolue au chargement du scénario ; erreur explicite si absente
+- `scenarios/scaleway-devstral.yaml` revu pour architecture LiteLLM gateway : un seul serveur gateway, routing par alias modèle (`devstral-small-llama`, `devstral-small-vllm`, `devstral-small-sglang`)
+- `scenarios/insitu-scaleway-devstral.yaml` — scénario template pour exécution in-situ depuis le serveur gateway (accès direct aux backends, métriques KV cache disponibles)
+- `README.md` : sections **API keys** (syntaxe `${VAR}`) et **LiteLLM gateway routing** (pattern model aliases)
+- `DEVELOPER.md` : entrées Troubleshooting pour 401 Unauthorized et ping timeout LiteLLM
+
+### Fixed
+- `LiteLLMClient.health()` surcharge `BaseClient.health()` pour utiliser `/health/liveliness` en priorité — évite le timeout de 10 s causé par `/health` qui déclenche des appels d'inférence sur tous les modèles configurés
+
+### Changed
+- `README.md` : section Install simplifiée (suppression des instructions PyPI non disponibles, installation depuis les sources uniquement)
+
 ## [0.3.0] - 2026-03-10
 
 ### Fixed (code review — MAJEUR)
