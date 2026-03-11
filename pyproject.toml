@@ -48,10 +48,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/your-org/llm-bench"
-Repository = "https://github.com/your-org/llm-bench"
-Issues = "https://github.com/your-org/llm-bench/issues"
-Changelog = "https://github.com/your-org/llm-bench/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/fisheatfish/llm-bench"
+Repository = "https://github.com/fisheatfish/llm-bench"
+Issues = "https://github.com/fisheatfish/llm-bench/issues"
+Changelog = "https://github.com/fisheatfish/llm-bench/blob/main/CHANGELOG.md"
 
 [project.scripts]
 llm-bench = "llm_bench.cli:app"

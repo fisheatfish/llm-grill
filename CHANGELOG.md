@@ -9,6 +9,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-03-11
+
+### Added
+- `api_key` dans `ServerConfig` supporte la syntaxe `${VAR_NAME}` — la variable d'environnement est résolue au chargement du scénario ; erreur explicite si absente
+- `scenarios/scaleway-devstral.yaml` revu pour architecture LiteLLM gateway : un seul serveur gateway, routing par alias modèle (`devstral-small-llama`, `devstral-small-vllm`, `devstral-small-sglang`)
+- `scenarios/insitu-scaleway-devstral.yaml` — scénario template pour exécution in-situ depuis le serveur gateway (accès direct aux backends, métriques KV cache disponibles)
+- `README.md` : sections **API keys** (syntaxe `${VAR}`) et **LiteLLM gateway routing** (pattern model aliases)
+- `DEVELOPER.md` : entrées Troubleshooting pour 401 Unauthorized et ping timeout LiteLLM
+
+### Fixed
+- `LiteLLMClient.health()` surcharge `BaseClient.health()` pour utiliser `/health/liveliness` en priorité — évite le timeout de 10 s causé par `/health` qui déclenche des appels d'inférence sur tous les modèles configurés
+
+### Changed
+- `README.md` : section Install simplifiée (suppression des instructions PyPI non disponibles, installation depuis les sources uniquement)
+
 ## [0.3.0] - 2026-03-10
 
 ### Fixed (code review — MAJEUR)
