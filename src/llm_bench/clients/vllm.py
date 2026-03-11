@@ -10,10 +10,10 @@ from .prometheus import parse_prometheus
 logger = logging.getLogger(__name__)
 
 _VLLM_METRICS = [
-    "vllm:kv_cache_usage_perc",       # vLLM >= 0.4 (renamed from gpu_cache_usage_perc)
-    "vllm:gpu_cache_usage_perc",       # vLLM < 0.4 (kept for backwards compatibility)
-    "vllm:prefix_cache_hits_total",    # cumulative prefix cache hits (tokens)
-    "vllm:prefix_cache_queries_total", # cumulative prefix cache queries (tokens)
+    "vllm:kv_cache_usage_perc",  # vLLM >= 0.4 (renamed from gpu_cache_usage_perc)
+    "vllm:gpu_cache_usage_perc",  # vLLM < 0.4 (kept for backwards compatibility)
+    "vllm:prefix_cache_hits_total",  # cumulative prefix cache hits (tokens)
+    "vllm:prefix_cache_queries_total",  # cumulative prefix cache queries (tokens)
     "vllm:num_requests_running",
     "vllm:num_requests_waiting",
     "vllm:avg_prompt_throughput_toks_per_s",
@@ -30,9 +30,7 @@ class VllmClient(BaseClient):
             raw = parse_prometheus(resp.text, prefixes=_VLLM_METRICS)
 
             # Handle metric rename between vLLM versions
-            kv_usage = raw.get("vllm:kv_cache_usage_perc") or raw.get(
-                "vllm:gpu_cache_usage_perc"
-            )
+            kv_usage = raw.get("vllm:kv_cache_usage_perc") or raw.get("vllm:gpu_cache_usage_perc")
 
             # Prefix cache hit rate derived from cumulative counters
             hits = raw.get("vllm:prefix_cache_hits_total", 0)

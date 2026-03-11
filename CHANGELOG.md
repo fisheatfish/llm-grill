@@ -9,6 +9,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-03-11
+
+### Fixed
+- `SglangClient.backend_metrics()` : `kvcache` désormais extrait récursivement dans la réponse imbriquée de `/get_server_info` (la valeur n'était pas au niveau racine) ; normalisé de 0-100 vers 0-1 pour cohérence avec vLLM
+- `VllmClient.backend_metrics()` : métrique renommée `vllm:gpu_cache_usage_perc` → `vllm:kv_cache_usage_perc` dans vLLM >= 0.4 — les deux noms sont maintenant supportés (fallback sur l'ancien nom pour rétrocompatibilité)
+
+### Added
+- **KV cache hit rate pour vLLM** : calculé depuis les counters Prometheus `prefix_cache_hits_total / prefix_cache_queries_total` — disponible sans configuration supplémentaire si `enable_prefix_caching=True`
+- **KV cache hit rate pour SGLang** : extraction de `cache_hit_rate` depuis `/get_server_info` — nécessite `--enable-cache-report` au démarrage du serveur SGLang
+- `metrics.py` : `kv_cache_usage_mean` cherche successivement `vllm:kv_cache_usage_perc`, `vllm:gpu_cache_usage_perc`, `kv_cache_usage` (SGLang)
+
 ## [0.4.1] - 2026-03-11
 
 ### Fixed
