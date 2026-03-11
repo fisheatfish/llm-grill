@@ -19,6 +19,7 @@ from llm_bench.metrics import (
     aggregate_conversations,
     estimate_total_duration,
     group_by_target,
+    is_ramp_run,
 )
 from llm_bench.report import (
     JsonlWriter,
@@ -27,6 +28,7 @@ from llm_bench.report import (
     load_jsonl,
     print_aggregated_json,
     print_conversation_table,
+    print_ramp_table,
     print_summary_table,
 )
 from llm_bench.runner import BenchmarkRunner
@@ -201,9 +203,14 @@ def show_scenario(
         console.print(f"  • {t.server} × {t.model} × {t.conversation}")
 
     load = cfg.load
+    ramp_info = (
+        f"  ramp_levels={load.ramp_levels}  pause={load.ramp_pause_seconds}s"
+        if load.ramp_levels
+        else f"  ramp={load.ramp_up_seconds}s"
+    )
     console.print(
         f"\n[bold]Load[/]  concurrent={load.concurrent_users}  "
-        f"iterations={load.iterations}  ramp={load.ramp_up_seconds}s"
+        f"iterations={load.iterations}{ramp_info}"
     )
 
 
@@ -239,9 +246,12 @@ def report(
     conv_metrics = aggregate_conversations(results)
 
     if format == "table":
-        print_summary_table(aggregations)
-        if not no_conversations and conv_metrics:
-            print_conversation_table(conv_metrics)
+        if is_ramp_run(results):
+            print_ramp_table(results)
+        else:
+            print_summary_table(aggregations)
+            if not no_conversations and conv_metrics:
+                print_conversation_table(conv_metrics)
     elif format == "json":
         print_aggregated_json(aggregations, conv_metrics)
     elif format == "csv":
@@ -257,6 +267,9 @@ def report(
 
 def _print_results(results: list[RequestMetrics], total_duration: float, quiet: bool) -> None:
     if quiet or not results:
+        return
+    if is_ramp_run(results):
+        print_ramp_table(results)
         return
     aggregations = [aggregate(v, total_duration) for v in group_by_target(results).values()]
     conv_metrics = aggregate_conversations(results)

@@ -10,6 +10,8 @@ from llm_bench.metrics import (
     RequestMetrics,
     aggregate,
     aggregate_conversations,
+    group_by_level,
+    is_ramp_run,
 )
 
 
@@ -23,6 +25,7 @@ def _make_result(
     conversation: str = "c",
     server: str = "srv",
     backend_metrics: dict | None = None,
+    concurrent_users_level: int = 0,
 ) -> RequestMetrics:
     return RequestMetrics(
         scenario="s",
@@ -41,7 +44,50 @@ def _make_result(
         tokens_per_second=completion_tokens / e2e,
         success=success,
         backend_metrics=backend_metrics or {},
+        concurrent_users_level=concurrent_users_level,
     )
+
+
+# ---------------------------------------------------------------------------
+# group_by_level / is_ramp_run
+# ---------------------------------------------------------------------------
+
+
+class TestRampHelpers:
+    def test_is_ramp_run_false_when_all_zero(self) -> None:
+        results = [_make_result(concurrent_users_level=0) for _ in range(3)]
+        assert is_ramp_run(results) is False
+
+    def test_is_ramp_run_false_single_level(self) -> None:
+        results = [_make_result(concurrent_users_level=5) for _ in range(3)]
+        assert is_ramp_run(results) is False
+
+    def test_is_ramp_run_true_multiple_levels(self) -> None:
+        results = [
+            _make_result(concurrent_users_level=1),
+            _make_result(concurrent_users_level=5),
+            _make_result(concurrent_users_level=10),
+        ]
+        assert is_ramp_run(results) is True
+
+    def test_group_by_level_keys(self) -> None:
+        results = [
+            _make_result(server="s1", concurrent_users_level=1),
+            _make_result(server="s1", concurrent_users_level=5),
+            _make_result(server="s2", concurrent_users_level=1),
+        ]
+        groups = group_by_level(results)
+        assert set(groups.keys()) == {("s1", "mdl", 1), ("s1", "mdl", 5), ("s2", "mdl", 1)}
+
+    def test_group_by_level_counts(self) -> None:
+        results = [
+            _make_result(concurrent_users_level=1),
+            _make_result(concurrent_users_level=1),
+            _make_result(concurrent_users_level=5),
+        ]
+        groups = group_by_level(results)
+        assert len(groups[("srv", "mdl", 1)]) == 2
+        assert len(groups[("srv", "mdl", 5)]) == 1
 
 
 # ---------------------------------------------------------------------------

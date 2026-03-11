@@ -39,6 +39,7 @@ class ConversationRunner:
         iteration: int,
         think_time: float,
         on_result: ResultCallback,
+        concurrent_users_level: int = 0,
     ) -> None:
         self.server = server
         self.model = model
@@ -48,6 +49,7 @@ class ConversationRunner:
         self.iteration = iteration
         self.think_time = think_time
         self.on_result = on_result
+        self.concurrent_users_level = concurrent_users_level
 
     async def run(self) -> None:
         history: list[Message] = []
@@ -102,6 +104,7 @@ class ConversationRunner:
                         success=success,
                         error=error,
                         backend_metrics=backend_m,
+                        concurrent_users_level=self.concurrent_users_level,
                     )
                 )
                 turn_index += 1
@@ -123,7 +126,7 @@ class TargetRunner:
         self.target = target
         self.on_result = on_result
 
-    async def run(self) -> list[RequestMetrics]:
+    async def run(self, concurrent_users_level: int = 0) -> list[RequestMetrics]:
         server = self.scenario.get_server(self.target.server)
         model = self.scenario.get_model(self.target.model)
         conversation = self.scenario.get_conversation(self.target.conversation)
@@ -145,7 +148,16 @@ class TargetRunner:
 
         async with anyio.create_task_group() as tg:
             for user_id in range(load.concurrent_users):
-                tg.start_soon(self._run_user, server, model, conversation, load, user_id, collect)
+                tg.start_soon(
+                    self._run_user,
+                    server,
+                    model,
+                    conversation,
+                    load,
+                    user_id,
+                    collect,
+                    concurrent_users_level,
+                )
 
         return results
 
@@ -157,6 +169,7 @@ class TargetRunner:
         load: LoadConfig,
         user_id: int,
         on_result: ResultCallback,
+        concurrent_users_level: int = 0,
     ) -> None:
         """Ramp-up delay + sequential iterations for one virtual user."""
         if load.ramp_up_seconds and user_id > 0:
@@ -173,8 +186,41 @@ class TargetRunner:
                 iteration=iteration,
                 think_time=load.think_time_seconds,
                 on_result=on_result,
+                concurrent_users_level=concurrent_users_level,
             )
             await runner.run()
+
+
+class RampRunner:
+    """Iterates over ramp_levels, running each level sequentially with a pause between."""
+
+    def __init__(self, scenario: ScenarioConfig, on_result: ResultCallback) -> None:
+        self.scenario = scenario
+        self.on_result = on_result
+
+    async def run(self) -> tuple[list[RequestMetrics], float]:
+        load = self.scenario.load
+        levels = load.ramp_levels or []
+        all_results: list[RequestMetrics] = []
+        t_start = time.perf_counter()
+
+        for i, level in enumerate(levels):
+            level_load = load.model_copy(update={"concurrent_users": level})
+            level_scenario = self.scenario.model_copy(update={"load": level_load})
+            logger.info("Ramp level %d: %d concurrent users", i + 1, level)
+
+            for target in level_scenario.targets:
+                target_runner = TargetRunner(level_scenario, target, self.on_result)
+                results = await target_runner.run(concurrent_users_level=level)
+                all_results.extend(results)
+
+            if i < len(levels) - 1 and load.ramp_pause_seconds > 0:
+                logger.info("Pausing %.1fs before next level", load.ramp_pause_seconds)
+                await anyio.sleep(load.ramp_pause_seconds)
+
+        total_duration = time.perf_counter() - t_start
+        logger.info("Ramp complete in %.1fs, %d requests", total_duration, len(all_results))
+        return all_results, total_duration
 
 
 class BenchmarkRunner:
@@ -185,6 +231,9 @@ class BenchmarkRunner:
         self.on_result = on_result
 
     async def run(self) -> tuple[list[RequestMetrics], float]:
+        if self.scenario.load.ramp_levels:
+            return await RampRunner(self.scenario, self.on_result).run()
+
         all_results: list[RequestMetrics] = []
         t_start = time.perf_counter()
 
