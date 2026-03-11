@@ -9,6 +9,22 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-03-11
+
+### Added
+- **Load Ramp** (`ramp_levels`) — nouveau champ optionnel dans `LoadConfig` permettant de tester plusieurs niveaux de concurrence en une seule exécution (`ramp_levels: [1, 5, 10, 20, 50]`)
+- `ramp_pause_seconds` dans `LoadConfig` — pause configurable entre chaque niveau (défaut : 10 s)
+- `RampRunner` dans `runner.py` — itère les niveaux séquentiellement, chaque `RequestMetrics` est taggé avec `concurrent_users_level`
+- `concurrent_users_level: int` sur `RequestMetrics` (défaut `0` — rétrocompatible avec les JSONL existants)
+- `group_by_level()` dans `metrics.py` — groupe les résultats par `(server, model, concurrent_users_level)`
+- `is_ramp_run()` dans `metrics.py` — détecte automatiquement si un fichier JSONL contient plusieurs niveaux distincts
+- `print_ramp_table()` dans `report.py` — table Rich dédiée : Server | Model | Users | Requests | Success% | TTFT mean | TTFT p95 | E2E mean | E2E p95 | Tok/s total, triée par (server, model, level)
+- `llm-bench run` et `llm-bench report --format table` détectent automatiquement le mode ramp et affichent la table dédiée
+- `llm-bench show-scenario` affiche `ramp_levels` et `ramp_pause_seconds` si présents
+
+### Changed
+- `BenchmarkRunner.run()` délègue à `RampRunner` quand `ramp_levels` est défini ; chemin classique inchangé sinon
+
 ## [0.4.2] - 2026-03-11
 
 ### Fixed

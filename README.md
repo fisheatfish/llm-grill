@@ -2,7 +2,7 @@
 
 CLI for benchmarking LLM inference servers: vLLM, SGLang, llama.cpp, LiteLLM.
 
-Measures **TTFT**, **TPOT**, **end-to-end latency**, **throughput**, **success rate**, and **KV cache quality metrics** on multi-turn conversation scenarios.
+Measures **TTFT**, **TPOT**, **end-to-end latency**, **throughput**, **success rate**, **KV cache quality metrics**, and **load ramp** (breaking-point detection) on multi-turn conversation scenarios.
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
@@ -69,10 +69,11 @@ llm-bench ping scenarios/scaleway-devstral.yaml
 llm-bench run scenarios/scaleway-devstral.yaml --output results.jsonl
 ```
 
-After the run, two tables are printed automatically:
+After the run, tables are printed automatically:
 
 - **Benchmark Summary** — latency, throughput, success rate per server/model
 - **Conversation Quality Metrics** — KV cache hit rate, turn-to-turn latency ratio, context growth factor
+- **Load Ramp Results** — (if `ramp_levels` is set) one row per (server, model, concurrency level)
 
 **3. Generate a report from an existing results file**
 
@@ -189,6 +190,33 @@ load:
 
 Each entry in `turns` with `role: user` triggers a real inference request. The conversation history (including assistant responses) is carried forward across turns, so the server sees a growing context — which is what drives KV cache and context growth metrics.
 
+### Load ramp
+
+Add `ramp_levels` to sweep multiple concurrency levels in a single run. When set, `concurrent_users` is ignored and each level is executed sequentially with a configurable pause between them.
+
+```yaml
+load:
+  iterations: 3
+  ramp_levels: [1, 5, 10, 20, 50, 100]
+  ramp_pause_seconds: 10.0   # pause between levels, default 10 s
+  think_time_seconds: 0.0
+```
+
+Results are tagged with `concurrent_users_level` in the JSONL output. After the run, llm-bench automatically detects the ramp mode and displays the **Load Ramp Results** table:
+
+```
+                            Load Ramp Results
+┌──────────┬────────────────┬───────┬──────────┬───────────┬───────────┬──────────┬──────────┬─────────┬─────────────┐
+│ Server   │ Model          │ Users │ Requests │ Success % │ TTFT mean │ TTFT p95 │ E2E mean │ E2E p95 │ Tok/s total │
+├──────────┼────────────────┼───────┼──────────┼───────────┼───────────┼──────────┼──────────┼─────────┼─────────────┤
+│ gpu-vllm │ devstral-small │     1 │        3 │   100.0%  │    120 ms │   145 ms │  2100 ms │ 2300 ms │        72.4 │
+│ gpu-vllm │ devstral-small │     5 │       15 │   100.0%  │    180 ms │   220 ms │  3200 ms │ 3800 ms │       210.1 │
+│ gpu-vllm │ devstral-small │    10 │       30 │    96.7%  │    250 ms │   420 ms │  5100 ms │ 7200 ms │       318.4 │
+└──────────┴────────────────┴───────┴──────────┴───────────┴───────────┴──────────┴──────────┴─────────┴─────────────┘
+```
+
+The table is sorted by `(server, model, users)`, making it easy to spot the concurrency level at which success rate or latency degrades — i.e., the breaking point.
+
 ---
 
 ## Output format (JSONL)
@@ -216,7 +244,8 @@ One JSON object per request, written incrementally to disk during execution:
   "backend_metrics": {
     "vllm:gpu_cache_usage_perc": 0.34,
     "vllm:num_requests_running": 8.0
-  }
+  },
+  "concurrent_users_level": 10
 }
 ```
 
@@ -234,6 +263,9 @@ print(df.groupby("target_server")[["ttft_s", "e2e_latency_s", "tokens_per_second
 
 # Turn-to-turn latency ratio (manual)
 print(df.groupby(["target_server", "conversation", "turn"])["ttft_s"].mean())
+
+# Load ramp — latency and success rate per concurrency level
+print(df.groupby(["target_server", "concurrent_users_level"])[["ttft_s", "e2e_latency_s", "success"]].agg({"ttft_s": "mean", "e2e_latency_s": "mean", "success": "mean"}))
 ```
 
 **Read with Polars:**
