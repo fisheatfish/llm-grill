@@ -9,6 +9,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-03-11
+
+### Fixed
+- En mode ramp (`ramp_levels`), la table **Conversation Quality Metrics** (KV cache hit rate, turn-to-turn ratio, context growth factor) n'était pas affichée après la table Load Ramp Results — un `return` prématuré dans `_print_results` et un `else` mal placé dans `report` masquaient les métriques conversationnelles
+- Commande `llm-bench report --format table` : même correctif — la table conversation était dans le bloc `else` et donc ignorée en mode ramp
+
 ## [0.5.0] - 2026-03-11
 
 ### Added
