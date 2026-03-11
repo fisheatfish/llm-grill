@@ -1,0 +1,179 @@
+# Benchmark scénario — Devstral-Small-2-24B on Scaleway infrastructure
+# À exécuter DEPUIS le serveur gateway (DEV1-M) pour accès direct aux backends.
+#
+# Deux objectifs :
+#   1. Throughput & point de rupture  — llama.cpp vs vLLM vs SGLang (prompt court)
+#   2. KV cache sous charge           — vLLM vs SGLang (multi-turn, long context)
+#
+# ── AVANT DE LANCER ─────────────────────────────────────────────────────────
+# Remplacer les valeurs marquées  ← À MODIFIER  ci-dessous.
+# Pour connaître le model name exact de chaque serveur :
+#   curl http://<ip>:<port>/v1/models | jq '.data[].id'
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: insitu-scaleway-devstral-ramp
+description: >
+  Load ramp Devstral-Small-2-24B-Instruct-2512 across three backends, run in-situ
+  from the gateway server. Direct backend access enables KV cache metrics collection.
+  Objective 1 — throughput & breaking point: llama.cpp vs vLLM vs SGLang on a short
+  single-turn prompt. Objective 2 — KV cache efficiency under concurrent load: vLLM
+  vs SGLang on multi-turn debug sessions and long-context prefill.
+
+servers:
+  - name: gpu-llama
+    url: http://172.16.0.9:8001        # ← À MODIFIER  ex. http://xx.xxx.xxx.xxx:8001
+    api_key: none
+    backend: llamacpp
+    timeout: 120.0
+
+  - name: gpu-vllm
+    url: http://172.16.0.3:8001        # ← À MODIFIER  ex. http://xx.xxx.xxx.xxx:8001
+    api_key: none
+    backend: vllm
+    timeout: 120.0
+
+  - name: gpu-sglang
+    url: http://172.16.0.8:8001        # ← À MODIFIER  ex. http://xx.xxx.xxx.xxx:8001
+    api_key: none
+    backend: sglang
+    timeout: 120.0
+
+models:
+  - name: devstral-small                              # ← À MODIFIER  id exact retourné par /v1/models (vLLM & SGLang)
+    max_tokens: 512
+    temperature: 0.7
+  - name: Devstral-Small-2-24B-Instruct-2512-Q4_K_M.gguf  # ← À MODIFIER  (llama.cpp)
+    max_tokens: 512
+    temperature: 0.7
+
+conversations:
+  # ── Objectif 1 ─────────────────────────────────────────────────────────────
+  - name: short-code-question
+    description: >
+      Single-turn, prompt court — latence baseline et throughput.
+      Utilisé pour comparer les trois backends sous charge croissante
+      et identifier le point de rupture de llama.cpp.
+    turns:
+      - role: user
+        content: "Write a Python function that returns the nth Fibonacci number using memoization."
+
+  # ── Objectif 2 ─────────────────────────────────────────────────────────────
+  - name: multi-turn-debug
+    description: >
+      Session de debug multi-turn (3 échanges utilisateur) — teste la réutilisation
+      du KV cache sous charge. Le Turn-to-Turn Ratio et le KV Cache Hit Rate
+      doivent rester stables quand la concurrence augmente.
+    turns:
+      - role: system
+        content: "You are an expert Python developer. Be concise."
+      - role: user
+        content: "I have a FastAPI app that sometimes returns 500 errors under load. What should I check first?"
+      - role: user
+        content: "I found that the DB connection pool is exhausted. How do I configure SQLAlchemy pool size?"
+      - role: user
+        content: "What pool size would you recommend for 50 concurrent users?"
+
+  - name: long-context
+    description: >
+      Prompt long (~300 tokens) pour stresser le prefill et le KV cache.
+      Mesure le Context Growth Factor (E2E last turn / E2E first turn) et
+      la dégradation du KV Cache Usage (vLLM) / Hit Rate (SGLang) sous charge.
+    turns:
+      - role: user
+        content: |
+          Here is a large Python module with several classes and functions.
+          Please review it and suggest performance improvements.
+
+          ```python
+          import time
+          import random
+          from typing import List, Dict, Optional
+
+          class DataProcessor:
+              def __init__(self, data: List[Dict]):
+                  self.data = data
+                  self.cache = {}
+
+              def process_all(self) -> List[Dict]:
+                  results = []
+                  for item in self.data:
+                      result = self.process_item(item)
+                      results.append(result)
+                  return results
+
+              def process_item(self, item: Dict) -> Dict:
+                  key = str(item.get('id'))
+                  if key in self.cache:
+                      return self.cache[key]
+                  # Simulate expensive computation
+                  time.sleep(0.001)
+                  processed = {k: v * 2 if isinstance(v, int) else v for k, v in item.items()}
+                  self.cache[key] = processed
+                  return processed
+
+              def filter_by_threshold(self, threshold: int) -> List[Dict]:
+                  return [item for item in self.data if item.get('value', 0) > threshold]
+
+              def aggregate(self) -> Dict:
+                  total = sum(item.get('value', 0) for item in self.data)
+                  count = len(self.data)
+                  return {'total': total, 'count': count, 'average': total / count if count else 0}
+
+          def generate_data(n: int) -> List[Dict]:
+              return [{'id': i, 'value': random.randint(0, 100), 'label': f'item_{i}'} for i in range(n)]
+
+          if __name__ == '__main__':
+              data = generate_data(10000)
+              processor = DataProcessor(data)
+              results = processor.process_all()
+              filtered = processor.filter_by_threshold(50)
+              stats = processor.aggregate()
+              print(stats)
+          ```
+
+          Focus on: algorithmic complexity, memory usage, and Python idioms.
+
+targets:
+  # ── Objectif 1 : throughput & point de rupture (les 3 backends) ────────────
+  # La table Load Ramp Results montrera directement à quel niveau de concurrence
+  # llama.cpp décroche (success % < 100 %, latence qui explose).
+  - server: gpu-llama
+    model: Devstral-Small-2-24B-Instruct-2512-Q4_K_M.gguf
+    conversation: short-code-question
+
+  - server: gpu-vllm
+    model: devstral-small
+    conversation: short-code-question
+
+  - server: gpu-sglang
+    model: devstral-small
+    conversation: short-code-question
+
+  # ── Objectif 2 : KV cache sous charge (vLLM vs SGLang uniquement) ──────────
+  # Indicateurs clés à surveiller dans la table Conversation Quality Metrics :
+  #   - Turn-to-Turn Ratio < 1 → le KV cache réduit le prefill sur les tours suivants
+  #   - KV Cache Hit Rate (SGLang) / KV Cache Usage (vLLM) → doit rester stable sous charge
+  - server: gpu-vllm
+    model: devstral-small
+    conversation: multi-turn-debug
+
+  - server: gpu-sglang
+    model: devstral-small
+    conversation: multi-turn-debug
+
+  - server: gpu-vllm
+    model: devstral-small
+    conversation: long-context
+
+  - server: gpu-sglang
+    model: devstral-small
+    conversation: long-context
+
+load:
+  # ramp_levels remplace concurrent_users — chaque niveau est exécuté séquentiellement.
+  # À 50 users : vLLM et SGLang devraient tenir ; llama.cpp aura probablement décroché bien avant.
+  # Réduire à [1, 5, 10, 20] si les GPU ont moins de 40 GB VRAM.
+  ramp_levels: [1, 5, 10, 20, 50, 100, 150, 200]
+  ramp_pause_seconds: 15.0   # laisse le temps aux serveurs de vider leurs queues entre niveaux
+  iterations: 2              # par user et par niveau — ajuster selon le budget temps
+  think_time_seconds: 0.0
