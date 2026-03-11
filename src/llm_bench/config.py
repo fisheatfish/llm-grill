@@ -7,7 +7,15 @@ import re
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, HttpUrl, PositiveFloat, PositiveInt, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    HttpUrl,
+    PositiveFloat,
+    PositiveInt,
+    field_validator,
+    model_validator,
+)
 
 
 class Backend(StrEnum):

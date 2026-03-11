@@ -18,7 +18,9 @@ class LiteLLMClient(BaseClient):
                 if resp.status_code == 200:
                     return True
             except Exception:
-                logger.debug("Health check failed (%s) for %s", path, self.server.name, exc_info=True)
+                logger.debug(
+                    "Health check failed (%s) for %s", path, self.server.name, exc_info=True
+                )
         return False
 
     async def backend_metrics(self) -> dict:
