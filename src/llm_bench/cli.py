@@ -250,8 +250,8 @@ def report(
             print_ramp_table(results)
         else:
             print_summary_table(aggregations)
-            if not no_conversations and conv_metrics:
-                print_conversation_table(conv_metrics)
+        if not no_conversations and conv_metrics:
+            print_conversation_table(conv_metrics)
     elif format == "json":
         print_aggregated_json(aggregations, conv_metrics)
     elif format == "csv":
@@ -270,9 +270,9 @@ def _print_results(results: list[RequestMetrics], total_duration: float, quiet: 
         return
     if is_ramp_run(results):
         print_ramp_table(results)
-        return
-    aggregations = [aggregate(v, total_duration) for v in group_by_target(results).values()]
+    else:
+        aggregations = [aggregate(v, total_duration) for v in group_by_target(results).values()]
+        print_summary_table(aggregations)
     conv_metrics = aggregate_conversations(results)
-    print_summary_table(aggregations)
     if conv_metrics:
         print_conversation_table(conv_metrics)
