@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import os
+import re
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, HttpUrl, PositiveFloat, PositiveInt, model_validator
+from pydantic import BaseModel, Field, HttpUrl, PositiveFloat, PositiveInt, field_validator, model_validator
 
 
 class Backend(StrEnum):
@@ -22,6 +24,19 @@ class ServerConfig(BaseModel):
     api_key: str = "none"
     backend: Backend = Backend.openai
     timeout: PositiveFloat = 120.0
+
+    @field_validator("api_key", mode="before")
+    @classmethod
+    def expand_env_var(cls, v: str) -> str:
+        """Expand ${VAR_NAME} in api_key to the corresponding environment variable."""
+        match = re.fullmatch(r"\$\{([^}]+)\}", str(v))
+        if match:
+            var_name = match.group(1)
+            value = os.environ.get(var_name)
+            if value is None:
+                raise ValueError(f"Environment variable '{var_name}' is not set")
+            return value
+        return v
 
 
 class ModelConfig(BaseModel):
