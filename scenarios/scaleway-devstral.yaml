@@ -12,29 +12,28 @@ description: >
 
 servers:
   - name: gpu-llama
-    url: http://gpu-llama:8080
+    url: http://51.159.145.64:4000
     api_key: none
-    backend: llamacpp
+    backend: litellm
     timeout: 120.0
 
   - name: gpu-vllm
-    url: http://gpu-vllm:8000
+    url: http://51.159.145.64:4000
     api_key: none
-    backend: vllm
+    backend: litellm
     timeout: 120.0
 
   - name: gpu-sglang
-    url: http://gpu-sglang:30000
+    url: http://51.159.145.64:4000
     api_key: none
-    backend: sglang
+    backend: litellm
     timeout: 120.0
 
-  # Uncomment to route through the LiteLLM gateway instead
-  # - name: gateway
-  #   url: http://gateway:4000
-  #   api_key: none
-  #   backend: litellm
-  #   timeout: 120.0
+  - name: gateway
+    url: http://51.159.145.64:4000
+    api_key: none
+    backend: litellm
+    timeout: 120.0
 
 models:
   - name: devstral-small-2-24b
