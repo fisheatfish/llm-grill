@@ -76,6 +76,8 @@ class LoadConfig(BaseModel):
     iterations: PositiveInt = 1
     ramp_up_seconds: Annotated[float, Field(ge=0.0)] = 0.0
     think_time_seconds: Annotated[float, Field(ge=0.0)] = 0.0
+    ramp_levels: list[PositiveInt] | None = None
+    ramp_pause_seconds: Annotated[float, Field(ge=0.0)] = 10.0
 
 
 class BenchmarkTarget(BaseModel):

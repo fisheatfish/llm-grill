@@ -8,13 +8,14 @@ from pathlib import Path
 import pytest
 
 from llm_bench.metrics import RequestMetrics
-from llm_bench.report import JsonlWriter, export_csv, load_jsonl
+from llm_bench.report import JsonlWriter, export_csv, load_jsonl, print_ramp_table
 
 
 def _make_result(
     scenario: str = "s",
     server: str = "srv",
     backend_metrics: dict | None = None,
+    concurrent_users_level: int = 0,
 ) -> RequestMetrics:
     return RequestMetrics(
         scenario=scenario,
@@ -33,6 +34,7 @@ def _make_result(
         tokens_per_second=40.0,
         success=True,
         backend_metrics=backend_metrics or {},
+        concurrent_users_level=concurrent_users_level,
     )
 
 
@@ -81,6 +83,32 @@ class TestLoadJsonl:
         path.write_text("\n" + path.read_text() + "\n")
         loaded = load_jsonl(path)
         assert len(loaded) == 1
+
+
+class TestPrintRampTable:
+    def test_smoke(self) -> None:
+        """print_ramp_table should not raise with valid ramp results."""
+        results = [
+            _make_result(server="vllm", concurrent_users_level=1),
+            _make_result(server="vllm", concurrent_users_level=5),
+            _make_result(server="vllm", concurrent_users_level=10),
+        ]
+        print_ramp_table(results)  # should not raise
+
+    def test_sorted_by_server_model_level(self, capsys) -> None:
+        """Rows appear sorted by (server, model, level) — verify via group_by_level."""
+        from llm_bench.metrics import group_by_level
+
+        results = [
+            _make_result(server="b-server", concurrent_users_level=10),
+            _make_result(server="a-server", concurrent_users_level=5),
+            _make_result(server="a-server", concurrent_users_level=1),
+        ]
+        groups = group_by_level(results)
+        keys = sorted(groups.keys())
+        assert keys[0] == ("a-server", "mdl", 1)
+        assert keys[1] == ("a-server", "mdl", 5)
+        assert keys[2] == ("b-server", "mdl", 10)
 
 
 class TestExportCsv:

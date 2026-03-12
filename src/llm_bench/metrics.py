@@ -27,6 +27,7 @@ class RequestMetrics:
     success: bool
     error: str | None = None
     backend_metrics: dict = field(default_factory=dict)
+    concurrent_users_level: int = 0
 
     def to_jsonl(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False)
@@ -78,6 +79,22 @@ class ConversationMetrics:
 # ---------------------------------------------------------------------------
 # Aggregation
 # ---------------------------------------------------------------------------
+
+
+def group_by_level(
+    results: list[RequestMetrics],
+) -> dict[tuple[str, str, int], list[RequestMetrics]]:
+    """Group results by (target_server, target_model, concurrent_users_level)."""
+    groups: dict[tuple[str, str, int], list[RequestMetrics]] = {}
+    for r in results:
+        groups.setdefault((r.target_server, r.target_model, r.concurrent_users_level), []).append(r)
+    return groups
+
+
+def is_ramp_run(results: list[RequestMetrics]) -> bool:
+    """True if results contain more than one distinct non-zero concurrent_users_level."""
+    levels = {r.concurrent_users_level for r in results if r.concurrent_users_level > 0}
+    return len(levels) > 1
 
 
 def group_by_target(

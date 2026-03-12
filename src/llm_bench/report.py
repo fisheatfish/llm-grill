@@ -10,7 +10,14 @@ from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 
-from llm_bench.metrics import AggregatedMetrics, ConversationMetrics, RequestMetrics
+from llm_bench.metrics import (
+    AggregatedMetrics,
+    ConversationMetrics,
+    RequestMetrics,
+    aggregate,
+    estimate_total_duration,
+    group_by_level,
+)
 
 console = Console()
 
@@ -123,6 +130,42 @@ def print_conversation_table(conv_metrics: list[ConversationMetrics]) -> None:
             hit,
             usage,
             ttft_turns,
+        )
+
+    console.print(table)
+
+
+def print_ramp_table(results: list[RequestMetrics]) -> None:
+    """Render a Rich table for load ramp results, one row per (server, model, level)."""
+    table = Table(title="Load Ramp Results", show_lines=True)
+    table.add_column("Server", style="cyan")
+    table.add_column("Model", style="magenta")
+    table.add_column("Users", justify="right")
+    table.add_column("Requests", justify="right")
+    table.add_column("Success %", justify="right")
+    table.add_column("TTFT mean", justify="right")
+    table.add_column("TTFT p95", justify="right")
+    table.add_column("E2E mean", justify="right")
+    table.add_column("E2E p95", justify="right")
+    table.add_column("Tok/s total", justify="right")
+
+    groups = group_by_level(results)
+    for key in sorted(groups.keys()):
+        server, model, level = key
+        group = groups[key]
+        duration = estimate_total_duration(group)
+        a = aggregate(group, duration)
+        table.add_row(
+            server,
+            model,
+            str(level),
+            str(a.total_requests),
+            f"{a.success_rate * 100:.1f}%",
+            f"{a.ttft_mean_s * 1000:.0f} ms",
+            f"{a.ttft_p95_s * 1000:.0f} ms",
+            f"{a.e2e_mean_s * 1000:.0f} ms",
+            f"{a.e2e_p95_s * 1000:.0f} ms",
+            f"{a.total_tokens_per_second:.1f}",
         )
 
     console.print(table)

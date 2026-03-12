@@ -9,7 +9,7 @@ import pytest
 from llm_bench.clients.base import StreamResult
 from llm_bench.config import LoadConfig, ScenarioConfig
 from llm_bench.metrics import RequestMetrics
-from llm_bench.runner import BenchmarkRunner, ConversationRunner
+from llm_bench.runner import BenchmarkRunner, ConversationRunner, RampRunner
 
 
 def _mock_stream_result() -> StreamResult:
@@ -97,6 +97,61 @@ class TestConversationRunner:
         assert len(collected) == 1
         assert collected[0].success is False
         assert "connection refused" in collected[0].error
+
+
+@pytest.mark.asyncio
+class TestRampRunner:
+    async def test_ramp_produces_tagged_results(
+        self,
+        scenario: ScenarioConfig,
+        mocker,
+    ) -> None:
+        """RampRunner levels=[1,2,3] × 1 target × 1 iter = 1+2+3=6 results, each tagged."""
+        ramp_scenario = scenario.model_copy(
+            update={"load": LoadConfig(ramp_levels=[1, 2, 3], ramp_pause_seconds=0.0)}
+        )
+        collected: list[RequestMetrics] = []
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.complete = AsyncMock(return_value=_mock_stream_result())
+        mock_client.backend_metrics = AsyncMock(return_value={})
+
+        mocker.patch("llm_bench.runner.get_client", return_value=mock_client)
+
+        runner = RampRunner(ramp_scenario, on_result=collected.append)
+        results, duration = await runner.run()
+
+        # 1 + 2 + 3 users × 1 iteration × 1 turn each
+        assert len(results) == 6
+        assert {r.concurrent_users_level for r in results} == {1, 2, 3}
+
+    async def test_benchmark_runner_dispatches_to_ramp(
+        self,
+        scenario: ScenarioConfig,
+        mocker,
+    ) -> None:
+        """BenchmarkRunner routes to RampRunner when ramp_levels is set."""
+        ramp_scenario = scenario.model_copy(
+            update={"load": LoadConfig(ramp_levels=[1, 2], ramp_pause_seconds=0.0)}
+        )
+        collected: list[RequestMetrics] = []
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.complete = AsyncMock(return_value=_mock_stream_result())
+        mock_client.backend_metrics = AsyncMock(return_value={})
+
+        mocker.patch("llm_bench.runner.get_client", return_value=mock_client)
+
+        bench = BenchmarkRunner(ramp_scenario, on_result=collected.append)
+        results, _ = await bench.run()
+
+        # 1 + 2 users × 1 iteration × 1 turn each
+        assert len(results) == 3
+        assert {r.concurrent_users_level for r in results} == {1, 2}
 
 
 @pytest.mark.asyncio

@@ -10,6 +10,7 @@ import yaml
 from llm_bench.config import (
     Backend,
     ConversationTemplate,
+    LoadConfig,
     Message,
     ModelConfig,
     ScenarioConfig,
@@ -80,6 +81,25 @@ class TestScenarioConfig:
     def test_get_conversation(self, scenario: ScenarioConfig) -> None:
         c = scenario.get_conversation("simple")
         assert c.name == "simple"
+
+
+class TestLoadConfig:
+    def test_defaults(self) -> None:
+        lc = LoadConfig()
+        assert lc.ramp_levels is None
+        assert lc.ramp_pause_seconds == 10.0
+
+    def test_ramp_levels_parsed(self) -> None:
+        lc = LoadConfig(ramp_levels=[1, 5, 10])
+        assert lc.ramp_levels == [1, 5, 10]
+
+    def test_ramp_pause_seconds_custom(self) -> None:
+        lc = LoadConfig(ramp_pause_seconds=5.0)
+        assert lc.ramp_pause_seconds == 5.0
+
+    def test_ramp_pause_negative_rejected(self) -> None:
+        with pytest.raises(Exception):
+            LoadConfig(ramp_pause_seconds=-1.0)
 
 
 class TestLoadScenario:
