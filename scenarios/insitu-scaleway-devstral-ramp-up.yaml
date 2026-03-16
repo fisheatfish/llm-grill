@@ -75,10 +75,17 @@ conversations:
 
   - name: long-context
     description: >
-      Prompt long (~300 tokens) pour stresser le prefill et le KV cache.
+      Prompt long (~1200 tokens, multi-turn) pour stresser le prefill et le KV cache.
       Mesure le Context Growth Factor (E2E last turn / E2E first turn) et
       la dégradation du KV Cache Usage (vLLM) / Hit Rate (SGLang) sous charge.
+      Le volume de contexte cumulé doit forcer une différence visible entre les
+      stratégies de cache de vLLM (PagedAttention) et SGLang (RadixAttention).
     turns:
+      - role: system
+        content: >
+          You are a senior performance engineer. Answer concisely with code examples.
+          When reviewing code, always consider memory allocation, cache locality, and
+          algorithmic complexity. Prefer zero-copy and streaming approaches.
       - role: user
         content: |
           Here is a large Python module with several classes and functions.
@@ -87,29 +94,74 @@ conversations:
           ```python
           import time
           import random
-          from typing import List, Dict, Optional
+          import hashlib
+          import json
+          import logging
+          from typing import List, Dict, Optional, Tuple, Any
+          from dataclasses import dataclass, field
+          from collections import defaultdict
+          from functools import lru_cache
+
+          logger = logging.getLogger(__name__)
+
+          @dataclass
+          class ProcessingConfig:
+              batch_size: int = 100
+              max_retries: int = 3
+              timeout_seconds: float = 30.0
+              enable_caching: bool = True
+              dedup_strategy: str = "hash"  # hash | exact
+
+          @dataclass
+          class ProcessingResult:
+              item_id: int
+              status: str
+              output: Dict[str, Any]
+              elapsed_ms: float
+              retries: int = 0
 
           class DataProcessor:
-              def __init__(self, data: List[Dict]):
+              def __init__(self, data: List[Dict], config: Optional[ProcessingConfig] = None):
                   self.data = data
-                  self.cache = {}
+                  self.config = config or ProcessingConfig()
+                  self.cache: Dict[str, Dict] = {}
+                  self._stats = defaultdict(int)
 
-              def process_all(self) -> List[Dict]:
+              def process_all(self) -> List[ProcessingResult]:
                   results = []
                   for item in self.data:
                       result = self.process_item(item)
                       results.append(result)
                   return results
 
-              def process_item(self, item: Dict) -> Dict:
-                  key = str(item.get('id'))
-                  if key in self.cache:
-                      return self.cache[key]
-                  # Simulate expensive computation
-                  time.sleep(0.001)
-                  processed = {k: v * 2 if isinstance(v, int) else v for k, v in item.items()}
-                  self.cache[key] = processed
-                  return processed
+              def process_batch(self, batch: List[Dict]) -> List[ProcessingResult]:
+                  results = []
+                  for item in batch:
+                      results.append(self.process_item(item))
+                  return results
+
+              def process_item(self, item: Dict) -> ProcessingResult:
+                  start = time.monotonic()
+                  key = self._make_key(item)
+                  if self.config.enable_caching and key in self.cache:
+                      self._stats['cache_hits'] += 1
+                      elapsed = (time.monotonic() - start) * 1000
+                      return ProcessingResult(item['id'], 'cached', self.cache[key], elapsed)
+
+                  time.sleep(0.001)  # simulate work
+                  processed = {k: v * 2 if isinstance(v, (int, float)) else v for k, v in item.items()}
+                  processed['hash'] = hashlib.md5(json.dumps(item, sort_keys=True).encode()).hexdigest()
+
+                  if self.config.enable_caching:
+                      self.cache[key] = processed
+                  self._stats['processed'] += 1
+                  elapsed = (time.monotonic() - start) * 1000
+                  return ProcessingResult(item['id'], 'ok', processed, elapsed)
+
+              def _make_key(self, item: Dict) -> str:
+                  if self.config.dedup_strategy == "hash":
+                      return hashlib.sha256(json.dumps(item, sort_keys=True).encode()).hexdigest()
+                  return str(item.get('id'))
 
               def filter_by_threshold(self, threshold: int) -> List[Dict]:
                   return [item for item in self.data if item.get('value', 0) > threshold]
@@ -119,19 +171,76 @@ conversations:
                   count = len(self.data)
                   return {'total': total, 'count': count, 'average': total / count if count else 0}
 
-          def generate_data(n: int) -> List[Dict]:
-              return [{'id': i, 'value': random.randint(0, 100), 'label': f'item_{i}'} for i in range(n)]
+              def group_by(self, key: str) -> Dict[str, List[Dict]]:
+                  groups: Dict[str, List[Dict]] = defaultdict(list)
+                  for item in self.data:
+                      groups[str(item.get(key, 'unknown'))].append(item)
+                  return dict(groups)
+
+              def top_n(self, n: int, key: str = 'value') -> List[Dict]:
+                  return sorted(self.data, key=lambda x: x.get(key, 0), reverse=True)[:n]
+
+          class Pipeline:
+              def __init__(self, processors: List[DataProcessor]):
+                  self.processors = processors
+                  self.results: List[List[ProcessingResult]] = []
+
+              def run_sequential(self) -> List[List[ProcessingResult]]:
+                  self.results = []
+                  for proc in self.processors:
+                      self.results.append(proc.process_all())
+                  return self.results
+
+              def merge_results(self) -> List[ProcessingResult]:
+                  merged = []
+                  for result_list in self.results:
+                      merged.extend(result_list)
+                  return merged
+
+              def summary(self) -> Dict[str, Any]:
+                  all_results = self.merge_results()
+                  ok = [r for r in all_results if r.status == 'ok']
+                  cached = [r for r in all_results if r.status == 'cached']
+                  failed = [r for r in all_results if r.status == 'error']
+                  avg_latency = sum(r.elapsed_ms for r in all_results) / len(all_results) if all_results else 0
+                  return {
+                      'total': len(all_results), 'ok': len(ok),
+                      'cached': len(cached), 'failed': len(failed),
+                      'avg_latency_ms': round(avg_latency, 2),
+                  }
+
+          def generate_data(n: int, categories: int = 5) -> List[Dict]:
+              return [
+                  {'id': i, 'value': random.randint(0, 100),
+                   'label': f'item_{i}', 'category': f'cat_{i % categories}',
+                   'metadata': {'source': 'gen', 'batch': i // 100}}
+                  for i in range(n)
+              ]
 
           if __name__ == '__main__':
-              data = generate_data(10000)
-              processor = DataProcessor(data)
+              data = generate_data(10000, categories=10)
+              config = ProcessingConfig(batch_size=500, enable_caching=True)
+              processor = DataProcessor(data, config)
               results = processor.process_all()
               filtered = processor.filter_by_threshold(50)
+              groups = processor.group_by('category')
+              top = processor.top_n(20)
               stats = processor.aggregate()
               print(stats)
           ```
 
-          Focus on: algorithmic complexity, memory usage, and Python idioms.
+          Focus on: algorithmic complexity, memory allocation patterns, cache efficiency,
+          and Python idioms. Identify the top 3 bottlenecks.
+      - role: user
+        content: |
+          Now refactor the DataProcessor to use async processing with batching.
+          Show me the full updated class with asyncio.gather for parallel batch execution
+          and proper error handling with retries. Keep the caching layer.
+      - role: user
+        content: |
+          Finally, write a comprehensive benchmark comparing the sync vs async version.
+          Use timeit and measure: throughput (items/sec), memory peak (tracemalloc),
+          and p50/p95/p99 latencies. Generate a summary table.
 
 targets:
   # ── Objectif 1 : throughput & point de rupture (les 3 backends) ────────────
@@ -173,7 +282,7 @@ load:
   # ramp_levels remplace concurrent_users — chaque niveau est exécuté séquentiellement.
   # À 50 users : vLLM et SGLang devraient tenir ; llama.cpp aura probablement décroché bien avant.
   # Réduire à [1, 5, 10, 20] si les GPU ont moins de 40 GB VRAM.
-  ramp_levels: [1, 5, 10, 20, 50, 100, 150, 200]
+  ramp_levels: [1, 5, 10, 20, 50, 100, 150, 200, 300, 500]
   ramp_pause_seconds: 15.0   # laisse le temps aux serveurs de vider leurs queues entre niveaux
   iterations: 2              # par user et par niveau — ajuster selon le budget temps
   think_time_seconds: 0.0
