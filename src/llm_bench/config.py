@@ -6,6 +6,7 @@ import os
 import re
 from enum import StrEnum
 from typing import Annotated, Literal
+from uuid import uuid4
 
 from pydantic import (
     BaseModel,
@@ -80,10 +81,24 @@ class LoadConfig(BaseModel):
     ramp_pause_seconds: Annotated[float, Field(ge=0.0)] = 10.0
 
 
+class BackendConfig(BaseModel):
+    name: str
+    url: HttpUrl
+    type: Backend
+    ssh_host: str | None = None
+    ssh_user: str = "root"
+    gpu_type: str | None = None
+    model_dtype: str | None = None
+
+    def to_server_config(self) -> ServerConfig:
+        return ServerConfig(name=self.name, url=self.url, backend=self.type, api_key="none")
+
+
 class BenchmarkTarget(BaseModel):
     server: str
     model: str
     conversation: str
+    backend: str | None = None
 
 
 class ScenarioConfig(BaseModel):
@@ -94,6 +109,8 @@ class ScenarioConfig(BaseModel):
     conversations: list[ConversationTemplate]
     targets: list[BenchmarkTarget]
     load: LoadConfig = Field(default_factory=LoadConfig)
+    backends: list[BackendConfig] = Field(default_factory=list)
+    run_id: str = Field(default_factory=lambda: uuid4().hex[:8])
 
     @model_validator(mode="after")
     def validate_target_references(self) -> ScenarioConfig:
@@ -115,6 +132,13 @@ class ScenarioConfig(BaseModel):
                     f"Target references unknown conversation '{t.conversation}'. "
                     f"Available: {sorted(conv_names)}"
                 )
+        backend_names = {b.name for b in self.backends}
+        for t in self.targets:
+            if t.backend is not None and t.backend not in backend_names:
+                raise ValueError(
+                    f"Target references unknown backend '{t.backend}'. "
+                    f"Available: {sorted(backend_names)}"
+                )
         return self
 
     def get_server(self, name: str) -> ServerConfig:
@@ -134,3 +158,9 @@ class ScenarioConfig(BaseModel):
             if c.name == name:
                 return c
         raise KeyError(f"Conversation '{name}' not found")
+
+    def get_backend(self, name: str) -> BackendConfig:
+        for b in self.backends:
+            if b.name == name:
+                return b
+        raise KeyError(f"Backend '{name}' not found")

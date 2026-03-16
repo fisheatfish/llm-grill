@@ -28,6 +28,10 @@ class RequestMetrics:
     error: str | None = None
     backend_metrics: dict = field(default_factory=dict)
     concurrent_users_level: int = 0
+    run_id: str = ""
+    gpu_type: str | None = None
+    model_dtype: str | None = None
+    gpu_metrics: dict = field(default_factory=dict)
 
     def to_jsonl(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False)

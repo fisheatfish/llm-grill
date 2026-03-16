@@ -85,8 +85,13 @@ def print_summary_table(aggregations: list[AggregatedMetrics]) -> None:
     table.add_column("E2E mean", justify="right")
     table.add_column("Tok/s total", justify="right")
 
+    # Check if any results have GPU data (passed via extra_data)
+    has_gpu = getattr(print_summary_table, "_has_gpu", False)
+    if has_gpu:
+        table.add_column("GPU %", justify="right")
+
     for a in aggregations:
-        table.add_row(
+        row = [
             a.target_server,
             a.target_model,
             str(a.total_requests),
@@ -96,7 +101,8 @@ def print_summary_table(aggregations: list[AggregatedMetrics]) -> None:
             f"{a.tpot_mean_s * 1000:.0f} ms",
             f"{a.e2e_mean_s * 1000:.0f} ms",
             f"{a.total_tokens_per_second:.1f}",
-        )
+        ]
+        table.add_row(*row)
 
     console.print(table)
 

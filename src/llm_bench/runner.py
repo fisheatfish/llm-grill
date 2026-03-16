@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 import anyio
 
 from llm_bench.clients import get_client
+from llm_bench.clients.base import BaseClient
 from llm_bench.config import (
     BenchmarkTarget,
     ConversationTemplate,
@@ -19,6 +20,7 @@ from llm_bench.config import (
     ScenarioConfig,
     ServerConfig,
 )
+from llm_bench.gpu_monitor import GpuMonitor
 from llm_bench.metrics import RequestMetrics
 
 logger = logging.getLogger(__name__)
@@ -40,6 +42,11 @@ class ConversationRunner:
         think_time: float,
         on_result: ResultCallback,
         concurrent_users_level: int = 0,
+        metrics_client: BaseClient | None = None,
+        gpu_monitor: GpuMonitor | None = None,
+        run_id: str = "",
+        gpu_type: str | None = None,
+        model_dtype: str | None = None,
     ) -> None:
         self.server = server
         self.model = model
@@ -50,6 +57,12 @@ class ConversationRunner:
         self.think_time = think_time
         self.on_result = on_result
         self.concurrent_users_level = concurrent_users_level
+        self.metrics_client = metrics_client
+        self.gpu_monitor = gpu_monitor
+        self.run_id = run_id
+        self.gpu_type = gpu_type
+        self.model_dtype = model_dtype
+        self.gpu_host: str | None = None
 
     async def run(self) -> None:
         history: list[Message] = []
@@ -67,9 +80,13 @@ class ConversationRunner:
                 success = True
                 error: str | None = None
 
+                perf_ts = time.perf_counter()
                 try:
                     result = await client.complete(history, self.model)
-                    backend_m = await client.backend_metrics()
+                    if self.metrics_client is not None:
+                        backend_m = await self.metrics_client.backend_metrics()
+                    else:
+                        backend_m = await client.backend_metrics()
                     history.append(Message(role="assistant", content=result.content))
                 except Exception as exc:
                     result = None
@@ -84,6 +101,12 @@ class ConversationRunner:
                         turn_index,
                         exc,
                     )
+
+                gpu_m: dict = {}
+                if self.gpu_monitor is not None and self.gpu_host:
+                    nearest = self.gpu_monitor.get_nearest(self.gpu_host, perf_ts)
+                    if nearest:
+                        gpu_m = nearest
 
                 self.on_result(
                     RequestMetrics(
@@ -105,6 +128,10 @@ class ConversationRunner:
                         error=error,
                         backend_metrics=backend_m,
                         concurrent_users_level=self.concurrent_users_level,
+                        run_id=self.run_id,
+                        gpu_type=self.gpu_type,
+                        model_dtype=self.model_dtype,
+                        gpu_metrics=gpu_m,
                     )
                 )
                 turn_index += 1
@@ -121,10 +148,14 @@ class TargetRunner:
         scenario: ScenarioConfig,
         target: BenchmarkTarget,
         on_result: ResultCallback,
+        metrics_clients: dict[str, BaseClient] | None = None,
+        gpu_monitor: GpuMonitor | None = None,
     ) -> None:
         self.scenario = scenario
         self.target = target
         self.on_result = on_result
+        self.metrics_clients = metrics_clients or {}
+        self.gpu_monitor = gpu_monitor
 
     async def run(self, concurrent_users_level: int = 0) -> list[RequestMetrics]:
         server = self.scenario.get_server(self.target.server)
@@ -132,6 +163,16 @@ class TargetRunner:
         conversation = self.scenario.get_conversation(self.target.conversation)
         load = self.scenario.load
         results: list[RequestMetrics] = []
+
+        metrics_client = (
+            self.metrics_clients.get(self.target.backend) if self.target.backend else None
+        )
+        backend_cfg = None
+        if self.target.backend and self.scenario.backends:
+            try:
+                backend_cfg = self.scenario.get_backend(self.target.backend)
+            except KeyError:
+                pass
 
         def collect(m: RequestMetrics) -> None:
             results.append(m)
@@ -157,6 +198,8 @@ class TargetRunner:
                     user_id,
                     collect,
                     concurrent_users_level,
+                    metrics_client,
+                    backend_cfg,
                 )
 
         return results
@@ -170,11 +213,19 @@ class TargetRunner:
         user_id: int,
         on_result: ResultCallback,
         concurrent_users_level: int = 0,
+        metrics_client: BaseClient | None = None,
+        backend_cfg: object | None = None,
     ) -> None:
         """Ramp-up delay + sequential iterations for one virtual user."""
         if load.ramp_up_seconds and user_id > 0:
             delay = load.ramp_up_seconds / load.concurrent_users * user_id
             await anyio.sleep(delay)
+
+        from llm_bench.config import BackendConfig
+
+        gpu_type = backend_cfg.gpu_type if isinstance(backend_cfg, BackendConfig) else None
+        model_dtype = backend_cfg.model_dtype if isinstance(backend_cfg, BackendConfig) else None
+        gpu_host = backend_cfg.ssh_host if isinstance(backend_cfg, BackendConfig) else None
 
         for iteration in range(load.iterations):
             runner = ConversationRunner(
@@ -187,16 +238,30 @@ class TargetRunner:
                 think_time=load.think_time_seconds,
                 on_result=on_result,
                 concurrent_users_level=concurrent_users_level,
+                metrics_client=metrics_client,
+                gpu_monitor=self.gpu_monitor,
+                run_id=self.scenario.run_id,
+                gpu_type=gpu_type,
+                model_dtype=model_dtype,
             )
+            runner.gpu_host = gpu_host
             await runner.run()
 
 
 class RampRunner:
     """Iterates over ramp_levels, running each level sequentially with a pause between."""
 
-    def __init__(self, scenario: ScenarioConfig, on_result: ResultCallback) -> None:
+    def __init__(
+        self,
+        scenario: ScenarioConfig,
+        on_result: ResultCallback,
+        metrics_clients: dict[str, BaseClient] | None = None,
+        gpu_monitor: GpuMonitor | None = None,
+    ) -> None:
         self.scenario = scenario
         self.on_result = on_result
+        self.metrics_clients = metrics_clients or {}
+        self.gpu_monitor = gpu_monitor
 
     async def run(self) -> tuple[list[RequestMetrics], float]:
         load = self.scenario.load
@@ -210,7 +275,13 @@ class RampRunner:
             logger.info("Ramp level %d: %d concurrent users", i + 1, level)
 
             for target in level_scenario.targets:
-                target_runner = TargetRunner(level_scenario, target, self.on_result)
+                target_runner = TargetRunner(
+                    level_scenario,
+                    target,
+                    self.on_result,
+                    metrics_clients=self.metrics_clients,
+                    gpu_monitor=self.gpu_monitor,
+                )
                 results = await target_runner.run(concurrent_users_level=level)
                 all_results.extend(results)
 
@@ -231,17 +302,63 @@ class BenchmarkRunner:
         self.on_result = on_result
 
     async def run(self) -> tuple[list[RequestMetrics], float]:
-        if self.scenario.load.ramp_levels:
-            return await RampRunner(self.scenario, self.on_result).run()
+        metrics_clients: dict[str, BaseClient] = {}
+        gpu_monitor: GpuMonitor | None = None
 
-        all_results: list[RequestMetrics] = []
-        t_start = time.perf_counter()
+        for cfg in self.scenario.backends:
+            client = get_client(cfg.to_server_config())
+            await client.__aenter__()
+            metrics_clients[cfg.name] = client
 
-        for target in self.scenario.targets:
-            target_runner = TargetRunner(self.scenario, target, self.on_result)
-            results = await target_runner.run()
-            all_results.extend(results)
+        if any(b.ssh_host for b in self.scenario.backends):
+            gpu_monitor = GpuMonitor(self.scenario.backends)
 
-        total_duration = time.perf_counter() - t_start
-        logger.info("Benchmark complete in %.1fs, %d requests", total_duration, len(all_results))
-        return all_results, total_duration
+        try:
+            if self.scenario.load.ramp_levels:
+                return await self._run_with_gpu(
+                    RampRunner(self.scenario, self.on_result, metrics_clients, gpu_monitor),
+                    gpu_monitor,
+                )
+
+            all_results: list[RequestMetrics] = []
+            t_start = time.perf_counter()
+
+            async with anyio.create_task_group() as tg:
+                if gpu_monitor:
+                    await gpu_monitor.start(tg)
+
+                for target in self.scenario.targets:
+                    target_runner = TargetRunner(
+                        self.scenario,
+                        target,
+                        self.on_result,
+                        metrics_clients=metrics_clients,
+                        gpu_monitor=gpu_monitor,
+                    )
+                    results = await target_runner.run()
+                    all_results.extend(results)
+
+                if gpu_monitor:
+                    gpu_monitor.stop()
+
+            total_duration = time.perf_counter() - t_start
+            logger.info(
+                "Benchmark complete in %.1fs, %d requests", total_duration, len(all_results)
+            )
+            return all_results, total_duration
+        finally:
+            for client in metrics_clients.values():
+                await client.__aexit__(None, None, None)
+
+    async def _run_with_gpu(
+        self,
+        ramp_runner: RampRunner,
+        gpu_monitor: GpuMonitor | None,
+    ) -> tuple[list[RequestMetrics], float]:
+        async with anyio.create_task_group() as tg:
+            if gpu_monitor:
+                await gpu_monitor.start(tg)
+            result = await ramp_runner.run()
+            if gpu_monitor:
+                gpu_monitor.stop()
+        return result

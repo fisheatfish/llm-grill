@@ -106,6 +106,34 @@ class TestRequestMetrics:
         m = _make_result(success=False)
         assert not m.success
 
+    def test_new_fields_in_jsonl(self) -> None:
+        m = RequestMetrics(
+            scenario="s",
+            target_server="srv",
+            target_model="mdl",
+            conversation="c",
+            turn=0,
+            iteration=0,
+            user_id=0,
+            timestamp_start="2026-01-01T00:00:00+00:00",
+            ttft_s=0.1,
+            tpot_s=0.02,
+            e2e_latency_s=0.5,
+            prompt_tokens=10,
+            completion_tokens=20,
+            tokens_per_second=40.0,
+            success=True,
+            run_id="abc12345",
+            gpu_type="H100",
+            model_dtype="bf16",
+            gpu_metrics={"gpu_util_pct": 85.0, "gpu_mem_used_mib": 4000},
+        )
+        parsed = json.loads(m.to_jsonl())
+        assert parsed["run_id"] == "abc12345"
+        assert parsed["gpu_type"] == "H100"
+        assert parsed["model_dtype"] == "bf16"
+        assert parsed["gpu_metrics"]["gpu_util_pct"] == 85.0
+
 
 # ---------------------------------------------------------------------------
 # aggregate

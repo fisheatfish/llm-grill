@@ -9,6 +9,7 @@ import yaml
 
 from llm_bench.config import (
     Backend,
+    BackendConfig,
     ConversationTemplate,
     LoadConfig,
     Message,
@@ -81,6 +82,111 @@ class TestScenarioConfig:
     def test_get_conversation(self, scenario: ScenarioConfig) -> None:
         c = scenario.get_conversation("simple")
         assert c.name == "simple"
+
+
+class TestBackendConfig:
+    def test_valid(self) -> None:
+        b = BackendConfig(name="gpu-vllm", url="http://10.0.0.1:8000", type=Backend.vllm)
+        assert b.name == "gpu-vllm"
+        assert b.ssh_host is None
+        assert b.ssh_user == "root"
+
+    def test_to_server_config(self) -> None:
+        b = BackendConfig(
+            name="gpu-vllm",
+            url="http://10.0.0.1:8000",
+            type=Backend.vllm,
+            ssh_host="10.0.0.1",
+            gpu_type="H100",
+            model_dtype="bf16",
+        )
+        sc = b.to_server_config()
+        assert sc.name == "gpu-vllm"
+        assert sc.backend == Backend.vllm
+        assert sc.api_key == "none"
+
+    def test_with_all_fields(self) -> None:
+        b = BackendConfig(
+            name="b1",
+            url="http://10.0.0.1:8000",
+            type=Backend.sglang,
+            ssh_host="10.0.0.1",
+            ssh_user="admin",
+            gpu_type="L40S",
+            model_dtype="gguf-q8",
+        )
+        assert b.ssh_user == "admin"
+        assert b.gpu_type == "L40S"
+
+
+class TestBenchmarkTargetBackend:
+    def test_backend_optional(self) -> None:
+        from llm_bench.config import BenchmarkTarget
+
+        t = BenchmarkTarget(server="s1", model="m1", conversation="c1")
+        assert t.backend is None
+
+    def test_backend_set(self) -> None:
+        from llm_bench.config import BenchmarkTarget
+
+        t = BenchmarkTarget(server="s1", model="m1", conversation="c1", backend="gpu-vllm")
+        assert t.backend == "gpu-vllm"
+
+    def test_invalid_backend_ref(self) -> None:
+        with pytest.raises(Exception, match="unknown backend"):
+            ScenarioConfig(
+                name="t",
+                servers=[
+                    ServerConfig(name="s1", url="http://localhost:8000", backend=Backend.vllm)
+                ],
+                models=[ModelConfig(name="m1")],
+                conversations=[
+                    ConversationTemplate(name="c1", turns=[Message(role="user", content="hi")])
+                ],
+                targets=[
+                    {"server": "s1", "model": "m1", "conversation": "c1", "backend": "nonexistent"}
+                ],
+                backends=[
+                    BackendConfig(name="gpu-vllm", url="http://10.0.0.1:8000", type=Backend.vllm)
+                ],
+            )
+
+
+class TestScenarioBackends:
+    def test_retrocompat_no_backends(self, scenario: ScenarioConfig) -> None:
+        assert scenario.backends == []
+
+    def test_get_backend(self) -> None:
+        cfg = ScenarioConfig(
+            name="t",
+            servers=[ServerConfig(name="s1", url="http://localhost:8000", backend=Backend.vllm)],
+            models=[ModelConfig(name="m1")],
+            conversations=[
+                ConversationTemplate(name="c1", turns=[Message(role="user", content="hi")])
+            ],
+            targets=[{"server": "s1", "model": "m1", "conversation": "c1", "backend": "gpu-vllm"}],
+            backends=[
+                BackendConfig(name="gpu-vllm", url="http://10.0.0.1:8000", type=Backend.vllm)
+            ],
+        )
+        b = cfg.get_backend("gpu-vllm")
+        assert b.name == "gpu-vllm"
+
+    def test_get_backend_missing(self, scenario: ScenarioConfig) -> None:
+        with pytest.raises(KeyError):
+            scenario.get_backend("nonexistent")
+
+    def test_run_id_generated(self) -> None:
+        cfg = ScenarioConfig(
+            name="t",
+            servers=[ServerConfig(name="s1", url="http://localhost:8000")],
+            models=[ModelConfig(name="m1")],
+            conversations=[
+                ConversationTemplate(name="c1", turns=[Message(role="user", content="hi")])
+            ],
+            targets=[{"server": "s1", "model": "m1", "conversation": "c1"}],
+        )
+        assert len(cfg.run_id) == 8
 
 
 class TestLoadConfig:
