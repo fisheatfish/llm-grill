@@ -9,6 +9,25 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-03-17
+
+### Added
+- **GPU metrics collection** — `GpuMonitor` polls nvidia-smi over SSH at configurable intervals (default 2s), captures per-GPU snapshots (memory, utilization, temperature, power, PCIe, clocks) and attaches nearest timestamp match to each `RequestMetrics`
+- **BackendConfig** — new optional configuration for GPU monitoring with fields: `ssh_host`, `ssh_user` (default "root"), `gpu_type`, `model_dtype`
+- **GPU metrics in RequestMetrics** — fields added: `gpu_mem_used_mib`, `gpu_mem_total_mib`, `gpu_util_pct`, `gpu_temp_c_max`, `gpu_power_w_total`, `gpu_mem_util_pct_avg`, `gpu_type`
+- **Flattened metrics structure** — backend-specific metrics (KV cache usage, hit rate) and GPU metrics are now top-level fields in `RequestMetrics` instead of nested `backend_metrics` dict — improves CSV export and pandas analysis
+- **Enhanced Prometheus metrics** — `SglangClient` now fetches both Prometheus metrics (`/metrics`) and server info (`/get_server_info`) for comprehensive KV cache reporting
+- **Multi-GPU support** — `GpuSnapshot` includes per-device details for multi-GPU setups in `gpu_per_device` field
+
+### Changed
+- `RequestMetrics` structure refactored — `backend_metrics` dict removed, all metrics flattened to top level with consistent naming (`kv_cache_usage`, `kv_cache_hit_rate`, `vllm_*`, `sglang_*`)
+- Metric naming standardized — `kv_cache_usage_perc` → `kv_cache_usage` (0-1 range), `cache_hit_rate` → `kv_cache_hit_rate`
+- `VllmClient` and `SglangClient` use consistent metric key prefixes (`vllm:*`, `sglang:*`)
+
+### Fixed
+- GPU polling error handling — SSH connection failures and nvidia-smi errors logged at debug level, don't crash the monitor task
+- CSV export now includes all GPU and backend-specific metrics as columns
+
 ## [0.5.1] - 2026-03-11
 
 ### Fixed
