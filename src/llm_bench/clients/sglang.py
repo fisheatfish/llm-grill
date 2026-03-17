@@ -1,36 +1,58 @@
-"""SGLang client — OpenAI-compatible + /get_server_info endpoint."""
+"""SGLang client — OpenAI-compatible + /metrics Prometheus endpoint + /get_server_info."""
 
 from __future__ import annotations
 
 import logging
 
 from .base import BaseClient
+from .prometheus import parse_prometheus
 
 logger = logging.getLogger(__name__)
+
+_SGLANG_METRICS = [
+    "sglang:cache_hit_rate",
+    "sglang:num_running_reqs",
+    "sglang:num_waiting_reqs",
+    "sglang:token_usage",
+    "sglang:gen_throughput",
+]
 
 
 class SglangClient(BaseClient):
     async def backend_metrics(self) -> dict:
-        """Fetch SGLang server info including KV cache usage.
+        """Fetch SGLang metrics from Prometheus /metrics and /get_server_info.
 
-        Notes:
-            - cache_hit_rate requires SGLang to be started with --enable-cache-report.
-            - kvcache is reported as a percentage (0-100) and normalized to 0-1.
+        Uses /metrics (Prometheus) for cache_hit_rate and num_running_reqs,
+        and /get_server_info for kv_cache_usage and token_capacity.
         """
+        result: dict = {}
+
+        # 1. Prometheus /metrics — cache hit rate, running/waiting reqs
+        try:
+            resp = await self._http.get("/metrics")
+            resp.raise_for_status()
+            raw = parse_prometheus(resp.text, prefixes=_SGLANG_METRICS)
+            result["cache_hit_rate"] = raw.get("sglang:cache_hit_rate")
+            result["num_running_reqs"] = raw.get("sglang:num_running_reqs")
+            result["num_waiting_reqs"] = raw.get("sglang:num_waiting_reqs")
+            result["sglang:gen_throughput"] = raw.get("sglang:gen_throughput")
+        except Exception:
+            logger.debug("Failed to fetch SGLang /metrics for %s", self.server.name, exc_info=True)
+
+        # 2. /get_server_info — KV cache usage, token capacity
         try:
             resp = await self._http.get("/get_server_info")
             resp.raise_for_status()
             data = resp.json()
             kvcache_raw = _find_key(data, "kvcache")
-            return {
-                "kv_cache_usage": kvcache_raw / 100 if kvcache_raw is not None else None,
-                "cache_hit_rate": _find_key(data, "cache_hit_rate"),
-                "num_running_reqs": _find_key(data, "num_running_reqs"),
-                "token_capacity": _find_key(data, "token_capacity"),
-            }
+            result["kv_cache_usage"] = kvcache_raw / 100 if kvcache_raw is not None else None
+            result["token_capacity"] = _find_key(data, "token_capacity")
         except Exception:
-            logger.debug("Failed to fetch SGLang metrics for %s", self.server.name, exc_info=True)
-            return {}
+            logger.debug(
+                "Failed to fetch SGLang /get_server_info for %s", self.server.name, exc_info=True
+            )
+
+        return result
 
 
 def _find_key(obj: object, key: str) -> object:
