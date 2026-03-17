@@ -127,16 +127,12 @@ class TestBenchmarkTarget:
         with pytest.raises(Exception, match="unknown backend"):
             ScenarioConfig(
                 name="t",
-                backends=[
-                    BackendConfig(name="b1", url="http://localhost:8000", type=Backend.vllm)
-                ],
+                backends=[BackendConfig(name="b1", url="http://localhost:8000", type=Backend.vllm)],
                 models=[ModelConfig(name="m1")],
                 conversations=[
                     ConversationTemplate(name="c1", turns=[Message(role="user", content="hi")])
                 ],
-                targets=[
-                    {"backend": "nonexistent", "model": "m1", "conversation": "c1"}
-                ],
+                targets=[{"backend": "nonexistent", "model": "m1", "conversation": "c1"}],
             )
 
 

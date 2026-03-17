@@ -178,5 +178,3 @@ def print_aggregated_json(
     if conv_metrics:
         data["conversations"] = [c.to_dict() for c in conv_metrics]
     console.print_json(json.dumps(data))
-
-

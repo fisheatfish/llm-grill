@@ -170,9 +170,7 @@ class TestConversationRunnerMetricsClient:
         mock_client.backend_metrics = AsyncMock(return_value={"gateway": True})
 
         mock_metrics_client = AsyncMock()
-        mock_metrics_client.backend_metrics = AsyncMock(
-            return_value={"kv_cache_usage": 0.42}
-        )
+        mock_metrics_client.backend_metrics = AsyncMock(return_value={"kv_cache_usage": 0.42})
 
         mocker.patch("llm_bench.runner.get_client", return_value=mock_client)
 

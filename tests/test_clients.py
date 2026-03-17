@@ -9,7 +9,7 @@ import respx
 from httpx import Response
 
 from llm_bench.clients import get_client
-from llm_bench.config import Backend, Message, ModelConfig, BackendConfig
+from llm_bench.config import Backend, BackendConfig, Message, ModelConfig
 
 
 def _sse_body(tokens: list[str], model: str = "m", prompt_tokens: int = 10) -> bytes:

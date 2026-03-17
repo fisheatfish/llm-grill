@@ -190,9 +190,7 @@ def show_scenario(
     console.print("[bold]Backends[/]")
     for b in cfg.backends:
         gpu_mon = "  gpu_monitoring=on" if b.gpu_monitoring else ""
-        console.print(
-            f"  • [cyan]{b.name}[/] ({b.type.value}) → {b.url}{gpu_mon}"
-        )
+        console.print(f"  • [cyan]{b.name}[/] ({b.type.value}) → {b.url}{gpu_mon}")
 
     console.print("\n[bold]Models[/]")
     for m in cfg.models:
