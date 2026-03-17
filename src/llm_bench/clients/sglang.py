@@ -1,4 +1,4 @@
-"""SGLang client — OpenAI-compatible + /metrics Prometheus endpoint + /server_info."""
+"""SGLang client — OpenAI-compatible + /metrics Prometheus endpoint."""
 
 from __future__ import annotations
 
@@ -40,20 +40,3 @@ class SglangClient(BaseClient):
             logger.debug("Failed to fetch SGLang /metrics for %s", self.server.name, exc_info=True)
 
         return result
-
-
-def _find_key(obj: object, key: str) -> object:
-    """Recursively search for a key in a nested dict/list structure."""
-    if isinstance(obj, dict):
-        if key in obj:
-            return obj[key]
-        for v in obj.values():
-            found = _find_key(v, key)
-            if found is not None:
-                return found
-    elif isinstance(obj, list):
-        for item in obj:
-            found = _find_key(item, key)
-            if found is not None:
-                return found
-    return None
