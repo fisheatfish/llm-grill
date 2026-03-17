@@ -24,8 +24,8 @@ def _make_result(
     turn: int = 0,
     conversation: str = "c",
     server: str = "srv",
-    backend_metrics: dict | None = None,
     concurrent_users_level: int = 0,
+    **kwargs: object,
 ) -> RequestMetrics:
     return RequestMetrics(
         scenario="s",
@@ -43,8 +43,8 @@ def _make_result(
         completion_tokens=completion_tokens,
         tokens_per_second=completion_tokens / e2e,
         success=success,
-        backend_metrics=backend_metrics or {},
         concurrent_users_level=concurrent_users_level,
+        **kwargs,
     )
 
 
@@ -126,13 +126,14 @@ class TestRequestMetrics:
             run_id="abc12345",
             gpu_type="H100",
             model_dtype="bf16",
-            gpu_metrics={"gpu_util_pct": 85.0, "gpu_mem_used_mib": 4000},
+            gpu_util_pct=85.0,
+            gpu_mem_used_mib=4000,
         )
         parsed = json.loads(m.to_jsonl())
         assert parsed["run_id"] == "abc12345"
         assert parsed["gpu_type"] == "H100"
         assert parsed["model_dtype"] == "bf16"
-        assert parsed["gpu_metrics"]["gpu_util_pct"] == 85.0
+        assert parsed["gpu_util_pct"] == 85.0
 
 
 # ---------------------------------------------------------------------------
@@ -216,24 +217,24 @@ class TestAggregateConversations:
         servers = {c.target_server for c in conv}
         assert servers == {"vllm", "sglang"}
 
-    def test_kv_cache_hit_rate_sglang(self) -> None:
+    def test_kv_cache_hit_rate(self) -> None:
         results = [
-            _make_result(backend_metrics={"cache_hit_rate": 0.75}),
-            _make_result(backend_metrics={"cache_hit_rate": 0.85}),
+            _make_result(cache_hit_rate=0.75),
+            _make_result(cache_hit_rate=0.85),
         ]
         conv = aggregate_conversations(results)
         assert conv[0].kv_cache_hit_rate_mean == pytest.approx(0.80)
 
-    def test_kv_cache_usage_vllm(self) -> None:
+    def test_kv_cache_usage(self) -> None:
         results = [
-            _make_result(backend_metrics={"vllm:gpu_cache_usage_perc": 0.30}),
-            _make_result(backend_metrics={"vllm:gpu_cache_usage_perc": 0.50}),
+            _make_result(kv_cache_usage=0.30),
+            _make_result(kv_cache_usage=0.50),
         ]
         conv = aggregate_conversations(results)
         assert conv[0].kv_cache_usage_mean == pytest.approx(0.40)
 
-    def test_missing_backend_metrics_returns_none(self) -> None:
-        results = [_make_result(backend_metrics={})]
+    def test_missing_metrics_returns_none(self) -> None:
+        results = [_make_result()]
         conv = aggregate_conversations(results)
         assert conv[0].kv_cache_hit_rate_mean is None
         assert conv[0].kv_cache_usage_mean is None

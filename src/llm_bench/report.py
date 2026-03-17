@@ -55,19 +55,12 @@ def load_jsonl(path: Path) -> list[RequestMetrics]:
 
 
 def export_csv(results: list[RequestMetrics], path: Path) -> None:
-    """Export results to CSV (flattens backend_metrics).
-
-    Uses the union of all row keys as columns so that heterogeneous
-    backend_metrics across servers don't silently drop values.
-    """
+    """Export results to CSV."""
     if not results:
         return
-    rows = [_flatten(asdict(r)) for r in results]
-    all_keys: dict[str, None] = {}  # ordered set via insertion order
-    for row in rows:
-        all_keys.update(dict.fromkeys(row.keys()))
+    rows = [asdict(r) for r in results]
     with path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=list(all_keys), restval="")
+        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()), restval="")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -187,13 +180,3 @@ def print_aggregated_json(
     console.print_json(json.dumps(data))
 
 
-def _flatten(d: dict, prefix: str = "") -> dict:
-    """Recursively flatten nested dicts for CSV export."""
-    result: dict = {}
-    for k, v in d.items():
-        key = f"{prefix}{k}" if prefix else k
-        if isinstance(v, dict):
-            result.update(_flatten(v, prefix=f"{key}."))
-        else:
-            result[key] = v
-    return result

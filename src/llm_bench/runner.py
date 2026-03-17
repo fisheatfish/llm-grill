@@ -126,12 +126,22 @@ class ConversationRunner:
                         tokens_per_second=result.tokens_per_second if result else 0.0,
                         success=success,
                         error=error,
-                        backend_metrics=backend_m,
                         concurrent_users_level=self.concurrent_users_level,
                         run_id=self.run_id,
                         gpu_type=self.gpu_type,
                         model_dtype=self.model_dtype,
-                        gpu_metrics=gpu_m,
+                        # Backend metrics (flat)
+                        kv_cache_usage=backend_m.get("kv_cache_usage"),
+                        cache_hit_rate=backend_m.get("cache_hit_rate"),
+                        requests_running=backend_m.get("requests_running"),
+                        requests_waiting=backend_m.get("requests_waiting"),
+                        # GPU metrics (flat)
+                        gpu_mem_used_mib=gpu_m.get("gpu_mem_used_mib"),
+                        gpu_mem_total_mib=gpu_m.get("gpu_mem_total_mib"),
+                        gpu_util_pct=gpu_m.get("gpu_util_pct"),
+                        gpu_temp_c_max=gpu_m.get("gpu_temp_c_max"),
+                        gpu_power_w_total=gpu_m.get("gpu_power_w_total"),
+                        gpu_mem_util_pct_avg=gpu_m.get("gpu_mem_util_pct_avg"),
                     )
                 )
                 turn_index += 1

@@ -14,8 +14,8 @@ from llm_bench.report import JsonlWriter, export_csv, load_jsonl, print_ramp_tab
 def _make_result(
     scenario: str = "s",
     server: str = "srv",
-    backend_metrics: dict | None = None,
     concurrent_users_level: int = 0,
+    **kwargs: object,
 ) -> RequestMetrics:
     return RequestMetrics(
         scenario=scenario,
@@ -33,8 +33,8 @@ def _make_result(
         completion_tokens=20,
         tokens_per_second=40.0,
         success=True,
-        backend_metrics=backend_metrics or {},
         concurrent_users_level=concurrent_users_level,
+        **kwargs,
     )
 
 
@@ -131,11 +131,11 @@ class TestExportCsv:
         export_csv([], path)
         assert not path.exists()
 
-    def test_heterogeneous_backend_metrics(self, tmp_path: Path) -> None:
-        """All backend_metrics keys from all rows appear as columns."""
+    def test_backend_metrics_as_columns(self, tmp_path: Path) -> None:
+        """Backend metrics appear as top-level CSV columns."""
         results = [
-            _make_result(server="vllm", backend_metrics={"vllm:gpu_cache_usage_perc": 0.3}),
-            _make_result(server="sglang", backend_metrics={"cache_hit_rate": 0.8}),
+            _make_result(server="vllm", kv_cache_usage=0.3),
+            _make_result(server="sglang", cache_hit_rate=0.8),
         ]
         path = tmp_path / "out.csv"
         export_csv(results, path)
@@ -143,5 +143,5 @@ class TestExportCsv:
             reader = csv.DictReader(f)
             rows = list(reader)
         assert len(rows) == 2
-        assert "backend_metrics.vllm:gpu_cache_usage_perc" in rows[0]
-        assert "backend_metrics.cache_hit_rate" in rows[0]
+        assert "kv_cache_usage" in rows[0]
+        assert "cache_hit_rate" in rows[0]

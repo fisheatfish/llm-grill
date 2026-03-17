@@ -198,7 +198,7 @@ class TestConversationRunnerMetricsClient:
 
         assert len(collected) == 1
         m = collected[0]
-        assert m.backend_metrics == {"kv_cache_usage": 0.42}
+        assert m.kv_cache_usage == 0.42
         assert m.run_id == "test1234"
         assert m.gpu_type == "H100"
         assert m.model_dtype == "bf16"
