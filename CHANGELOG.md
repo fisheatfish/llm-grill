@@ -15,7 +15,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **GPU metrics collection** — `GpuMonitor` polls `nvidia-smi` over SSH at configurable intervals (default 2s), captures per-GPU snapshots (memory, utilization, temperature, power, PCIe gen/width, SM clock) and attaches nearest-timestamp match to each request result
 - **`gpu_monitoring: true`** flag on `BackendConfig` — enables GPU metrics collection ; SSH host is extracted from `url` automatically (`ssh_host` remains as optional override for bastion/management network setups)
 - **GPU metrics as top-level fields** in `RequestMetrics` — `gpu_mem_used_mib`, `gpu_mem_total_mib`, `gpu_util_pct`, `gpu_temp_c_max`, `gpu_power_w_total`, `gpu_mem_util_pct_avg`
-- **SGLang Prometheus scraping** — `SglangClient` now fetches `/metrics` (Prometheus) for `cache_hit_rate` and `num_running_reqs` in addition to `/get_server_info` for KV cache usage — fixes previously always-null values
+- **SGLang Prometheus scraping** — `SglangClient` now fetches `/metrics` (Prometheus) for `cache_hit_rate` and `num_running_reqs` in addition to `/server_info` for KV cache usage — fixes previously always-null values
 - **Multi-GPU support** — `GpuSnapshot` includes per-device details for multi-GPU setups
 - **ADR 002** — documents why a custom tool was built vs existing alternatives (LLMPerf, GenAI-Perf, Locust, vLLM benchmark_serving.py)
 
@@ -63,12 +63,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [0.4.2] - 2026-03-11
 
 ### Fixed
-- `SglangClient.backend_metrics()` : `kvcache` désormais extrait récursivement dans la réponse imbriquée de `/get_server_info` (la valeur n'était pas au niveau racine) ; normalisé de 0-100 vers 0-1 pour cohérence avec vLLM
+- `SglangClient.backend_metrics()` : `kvcache` désormais extrait récursivement dans la réponse imbriquée de `/server_info` (la valeur n'était pas au niveau racine) ; normalisé de 0-100 vers 0-1 pour cohérence avec vLLM
 - `VllmClient.backend_metrics()` : métrique renommée `vllm:gpu_cache_usage_perc` → `vllm:kv_cache_usage_perc` dans vLLM >= 0.4 — les deux noms sont maintenant supportés (fallback sur l'ancien nom pour rétrocompatibilité)
 
 ### Added
 - **KV cache hit rate pour vLLM** : calculé depuis les counters Prometheus `prefix_cache_hits_total / prefix_cache_queries_total` — disponible sans configuration supplémentaire si `enable_prefix_caching=True`
-- **KV cache hit rate pour SGLang** : extraction de `cache_hit_rate` depuis `/get_server_info` — nécessite `--enable-cache-report` au démarrage du serveur SGLang
+- **KV cache hit rate pour SGLang** : extraction de `cache_hit_rate` depuis `/server_info` — nécessite `--enable-cache-report` au démarrage du serveur SGLang
 - `metrics.py` : `kv_cache_usage_mean` cherche successivement `vllm:kv_cache_usage_perc`, `vllm:gpu_cache_usage_perc`, `kv_cache_usage` (SGLang)
 
 ## [0.4.1] - 2026-03-11
@@ -131,7 +131,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `aggregate_conversations()` — groups results by (server, model, conversation) and computes:
   - **Turn-to-Turn Latency Ratio** — mean(TTFT turn > 0) / mean(TTFT turn 0); < 1 indicates KV cache benefit
   - **Context Growth Factor** — mean(E2E last turn) / mean(E2E first turn); > 1 indicates latency increase with context
-  - **KV Cache Hit Rate** — averaged from SGLang `/get_server_info` (`cache_hit_rate`)
+  - **KV Cache Hit Rate** — averaged from SGLang `/server_info` (`cache_hit_rate`)
   - **KV Cache Usage** — averaged from vLLM `/metrics` (`vllm:gpu_cache_usage_perc`)
 - `print_conversation_table()` in `report.py` — Rich table for conversation metrics
 - `llm-bench report --no-conversations` flag to hide conversation metrics table
@@ -151,4 +151,4 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - CSV export via `--format csv` or `llm-bench report --format csv`
 - YAML scenario format with multi-turn conversations, concurrent users, and ramp-up
 - Example scenario for Scaleway infrastructure (Devstral-Small-2-24B, 3 backends)
-- Prometheus scraping for vLLM (`/metrics`) and SGLang (`/get_server_info`)
+- Prometheus scraping for vLLM (`/metrics`) and SGLang (`/server_info`)

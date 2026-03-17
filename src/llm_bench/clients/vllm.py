@@ -38,7 +38,7 @@ class VllmClient(BaseClient):
             cache_hit_rate = hits / queries if queries else None
 
             return {
-                "kv_cache_usage": kv_usage,
+                "kv_cache_usage": kv_usage / 100 if kv_usage is not None else None,
                 "cache_hit_rate": cache_hit_rate,
                 "requests_running": raw.get("vllm:num_requests_running"),
                 "requests_waiting": raw.get("vllm:num_requests_waiting"),

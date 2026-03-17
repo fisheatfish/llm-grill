@@ -29,7 +29,7 @@ src/llm_bench/
 ├── clients/
 │   ├── base.py      # Abstract BaseClient + SSE streaming + TTFT measurement
 │   ├── vllm.py      # vLLM (/metrics Prometheus)
-│   ├── sglang.py    # SGLang (/get_server_info)
+│   ├── sglang.py    # SGLang (/server_info)
 │   ├── llamacpp.py  # llama-server (/health, /metrics)
 │   ├── litellm.py   # LiteLLM proxy
 │   └── __init__.py  # get_client() factory

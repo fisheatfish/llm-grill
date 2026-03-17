@@ -1,6 +1,6 @@
 docs/plan/
 results/
-*.jsonl
+
 *.csv
 .env
 dist/

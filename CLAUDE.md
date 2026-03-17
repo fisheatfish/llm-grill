@@ -40,7 +40,7 @@ src/llm_bench/
 ├── clients/
 │   ├── base.py       # Classe abstraite BaseClient (méthodes : chat_stream, health, metrics_raw)
 │   ├── vllm.py       # Client vLLM (endpoint /metrics Prometheus)
-│   ├── sglang.py     # Client SGLang (endpoint /get_server_info)
+│   ├── sglang.py     # Client SGLang (endpoint /server_info)
 │   ├── llamacpp.py   # Client llama.cpp / llama-server
 │   └── litellm.py    # Client LiteLLM (gateway)
 ├── metrics.py        # dataclass RequestMetrics + fonctions d'agrégation

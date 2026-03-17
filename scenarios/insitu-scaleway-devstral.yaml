@@ -2,7 +2,7 @@
 # À exécuter DEPUIS le serveur gateway (DEV1-M) pour accès direct aux backends.
 #
 # Avantages vs scaleway-devstral.yaml :
-#   - KV cache hit rate disponible (SGLang /get_server_info)
+#   - KV cache hit rate disponible (SGLang /server_info)
 #   - KV cache usage disponible (vLLM /metrics Prometheus)
 #   - Mesures TTFT/TPOT sans latence gateway
 #
