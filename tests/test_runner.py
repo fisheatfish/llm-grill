@@ -171,7 +171,7 @@ class TestConversationRunnerMetricsClient:
 
         mock_metrics_client = AsyncMock()
         mock_metrics_client.backend_metrics = AsyncMock(
-            return_value={"vllm:kv_cache_usage_perc": 0.42}
+            return_value={"kv_cache_usage": 0.42}
         )
 
         mocker.patch("llm_bench.runner.get_client", return_value=mock_client)
@@ -198,7 +198,7 @@ class TestConversationRunnerMetricsClient:
 
         assert len(collected) == 1
         m = collected[0]
-        assert m.backend_metrics == {"vllm:kv_cache_usage_perc": 0.42}
+        assert m.backend_metrics == {"kv_cache_usage": 0.42}
         assert m.run_id == "test1234"
         assert m.gpu_type == "H100"
         assert m.model_dtype == "bf16"

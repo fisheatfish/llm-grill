@@ -38,10 +38,10 @@ class VllmClient(BaseClient):
             cache_hit_rate = hits / queries if queries else None
 
             return {
-                "vllm:kv_cache_usage_perc": kv_usage,
+                "kv_cache_usage": kv_usage,
                 "cache_hit_rate": cache_hit_rate,
-                "vllm:num_requests_running": raw.get("vllm:num_requests_running"),
-                "vllm:num_requests_waiting": raw.get("vllm:num_requests_waiting"),
+                "requests_running": raw.get("vllm:num_requests_running"),
+                "requests_waiting": raw.get("vllm:num_requests_waiting"),
             }
         except Exception:
             logger.debug("Failed to fetch vLLM metrics for %s", self.server.name, exc_info=True)

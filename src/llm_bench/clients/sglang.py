@@ -33,9 +33,9 @@ class SglangClient(BaseClient):
             resp.raise_for_status()
             raw = parse_prometheus(resp.text, prefixes=_SGLANG_METRICS)
             result["cache_hit_rate"] = raw.get("sglang:cache_hit_rate")
-            result["num_running_reqs"] = raw.get("sglang:num_running_reqs")
-            result["num_waiting_reqs"] = raw.get("sglang:num_waiting_reqs")
-            result["sglang:gen_throughput"] = raw.get("sglang:gen_throughput")
+            result["requests_running"] = raw.get("sglang:num_running_reqs")
+            result["requests_waiting"] = raw.get("sglang:num_waiting_reqs")
+            result["gen_throughput"] = raw.get("sglang:gen_throughput")
         except Exception:
             logger.debug("Failed to fetch SGLang /metrics for %s", self.server.name, exc_info=True)
 
