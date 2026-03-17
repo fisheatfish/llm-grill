@@ -27,16 +27,13 @@ jobs:
         run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --all-extras
+        run: make install
 
-      - name: Lint
-        run: uv run ruff check src tests
-
-      - name: Format check
-        run: uv run ruff format --check src tests
+      - name: Lint check
+        run: make check
 
       - name: Run tests
-        run: uv run pytest --tb=short
+        run: make test
 
   build:
     name: Build package
@@ -50,7 +47,7 @@ jobs:
         uses: astral-sh/setup-uv@v4
 
       - name: Build
-        run: uv build
+        run: make build
 
       - name: Upload dist
         uses: actions/upload-artifact@v4

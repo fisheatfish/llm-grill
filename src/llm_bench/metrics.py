@@ -1,15 +1,14 @@
-"""RequestMetrics dataclass and aggregation helpers."""
+"""RequestMetrics, AggregatedMetrics, ConversationMetrics and aggregation helpers."""
 
 from __future__ import annotations
 
-import json
-from dataclasses import asdict, dataclass
 from datetime import datetime
 from statistics import mean, median, quantiles
 
+from pydantic import BaseModel
 
-@dataclass
-class RequestMetrics:
+
+class RequestMetrics(BaseModel):
     scenario: str
     target_server: str
     target_model: str
@@ -42,11 +41,10 @@ class RequestMetrics:
     gpu_mem_util_pct_avg: float | None = None
 
     def to_jsonl(self) -> str:
-        return json.dumps(asdict(self), ensure_ascii=False)
+        return self.model_dump_json()
 
 
-@dataclass
-class AggregatedMetrics:
+class AggregatedMetrics(BaseModel):
     scenario: str
     target_server: str
     target_model: str
@@ -66,11 +64,10 @@ class AggregatedMetrics:
     total_duration_s: float
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        return self.model_dump()
 
 
-@dataclass
-class ConversationMetrics:
+class ConversationMetrics(BaseModel):
     """Per-conversation quality metrics: KV cache, turn-to-turn latency, context growth."""
 
     scenario: str
@@ -85,7 +82,7 @@ class ConversationMetrics:
     kv_cache_usage_mean: float | None  # vLLM: gpu_cache_usage_perc averaged across requests
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        return self.model_dump()
 
 
 # ---------------------------------------------------------------------------

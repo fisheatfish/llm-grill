@@ -160,15 +160,6 @@ def ping(
             gpu_mon = "  gpu_monitoring=on" if b.gpu_monitoring else ""
             console.print(f"  {icon}  {b.name} ({b.type.value}) — {b.url}{gpu_mon}")
 
-        if cfg.backends:
-            console.print("\n[bold]Backends[/]")
-            for b in cfg.backends:
-                async with get_client(b.to_server_config()) as client:
-                    ok = await client.health()
-                icon = "[green]✓[/]" if ok else "[red]✗[/]"
-                ssh_info = f"  ssh={b.ssh_host}" if b.ssh_host else ""
-                console.print(f"  {icon}  {b.name} ({b.type.value}) — {b.url}{ssh_info}")
-
     anyio.run(_check_all)
 
 
@@ -208,16 +199,6 @@ def show_scenario(
     console.print("\n[bold]Conversations[/]")
     for c in cfg.conversations:
         console.print(f"  • [yellow]{c.name}[/]  ({len(c.turns)} turns)")
-
-    if cfg.backends:
-        console.print("\n[bold]Backends[/]")
-        for b in cfg.backends:
-            gpu_info = f"  gpu={b.gpu_type}" if b.gpu_type else ""
-            dtype_info = f"  dtype={b.model_dtype}" if b.model_dtype else ""
-            ssh_info = f"  ssh={b.ssh_host}" if b.ssh_host else ""
-            console.print(
-                f"  • [green]{b.name}[/] ({b.type.value}) → {b.url}{gpu_info}{dtype_info}{ssh_info}"
-            )
 
     console.print("\n[bold]Targets[/]")
     for t in cfg.targets:

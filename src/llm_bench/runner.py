@@ -215,12 +215,6 @@ class TargetRunner:
             delay = load.ramp_up_seconds / load.concurrent_users * user_id
             await anyio.sleep(delay)
 
-        from llm_bench.config import BackendConfig
-
-        gpu_type = backend_cfg.gpu_type if isinstance(backend_cfg, BackendConfig) else None
-        model_dtype = backend_cfg.model_dtype if isinstance(backend_cfg, BackendConfig) else None
-        gpu_host = backend_cfg.ssh_host if isinstance(backend_cfg, BackendConfig) else None
-
         for iteration in range(load.iterations):
             runner = ConversationRunner(
                 backend=backend,

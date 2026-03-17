@@ -63,7 +63,7 @@ path = "src/llm_bench/__init__.py"
 packages = ["src/llm_bench"]
 
 [tool.pytest.ini_options]
-asyncio_mode = "strict"
+asyncio_mode = "auto"
 testpaths = ["tests"]
 
 [tool.ruff]

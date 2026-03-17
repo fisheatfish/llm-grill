@@ -126,20 +126,14 @@ backends:
     url: http://LLAMA_IP:8080
     type: llamacpp
     ssh_host: LLAMA_IP
-    gpu_type: L40S
-    model_dtype: gguf-q8
   - name: gpu-vllm
     url: http://VLLM_IP:8000
     type: vllm
     ssh_host: VLLM_IP
-    gpu_type: H100
-    model_dtype: bf16
   - name: gpu-sglang
     url: http://SGLANG_IP:8000
     type: sglang
     ssh_host: SGLANG_IP
-    gpu_type: H100
-    model_dtype: bf16
 
 targets:
   # --- Baseline: latence par backend ---
