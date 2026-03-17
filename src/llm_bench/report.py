@@ -55,19 +55,12 @@ def load_jsonl(path: Path) -> list[RequestMetrics]:
 
 
 def export_csv(results: list[RequestMetrics], path: Path) -> None:
-    """Export results to CSV (flattens backend_metrics).
-
-    Uses the union of all row keys as columns so that heterogeneous
-    backend_metrics across servers don't silently drop values.
-    """
+    """Export results to CSV."""
     if not results:
         return
-    rows = [_flatten(asdict(r)) for r in results]
-    all_keys: dict[str, None] = {}  # ordered set via insertion order
-    for row in rows:
-        all_keys.update(dict.fromkeys(row.keys()))
+    rows = [asdict(r) for r in results]
     with path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=list(all_keys), restval="")
+        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()), restval="")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -85,8 +78,13 @@ def print_summary_table(aggregations: list[AggregatedMetrics]) -> None:
     table.add_column("E2E mean", justify="right")
     table.add_column("Tok/s total", justify="right")
 
+    # Check if any results have GPU data (passed via extra_data)
+    has_gpu = getattr(print_summary_table, "_has_gpu", False)
+    if has_gpu:
+        table.add_column("GPU %", justify="right")
+
     for a in aggregations:
-        table.add_row(
+        row = [
             a.target_server,
             a.target_model,
             str(a.total_requests),
@@ -96,7 +94,8 @@ def print_summary_table(aggregations: list[AggregatedMetrics]) -> None:
             f"{a.tpot_mean_s * 1000:.0f} ms",
             f"{a.e2e_mean_s * 1000:.0f} ms",
             f"{a.total_tokens_per_second:.1f}",
-        )
+        ]
+        table.add_row(*row)
 
     console.print(table)
 
@@ -179,15 +178,3 @@ def print_aggregated_json(
     if conv_metrics:
         data["conversations"] = [c.to_dict() for c in conv_metrics]
     console.print_json(json.dumps(data))
-
-
-def _flatten(d: dict, prefix: str = "") -> dict:
-    """Recursively flatten nested dicts for CSV export."""
-    result: dict = {}
-    for k, v in d.items():
-        key = f"{prefix}{k}" if prefix else k
-        if isinstance(v, dict):
-            result.update(_flatten(v, prefix=f"{key}."))
-        else:
-            result[key] = v
-    return result

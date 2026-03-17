@@ -23,10 +23,10 @@ runner = CliRunner()
 def valid_scenario_file(tmp_path: Path) -> Path:
     data = {
         "name": "test",
-        "servers": [{"name": "s1", "url": "http://localhost:8000", "backend": "vllm"}],
+        "backends": [{"name": "b1", "url": "http://localhost:8000", "type": "vllm"}],
         "models": [{"name": "m1", "max_tokens": 128}],
         "conversations": [{"name": "c1", "turns": [{"role": "user", "content": "hello"}]}],
-        "targets": [{"server": "s1", "model": "m1", "conversation": "c1"}],
+        "targets": [{"backend": "b1", "model": "m1", "conversation": "c1"}],
     }
     f = tmp_path / "scenario.yaml"
     f.write_text(yaml.dump(data))
@@ -38,7 +38,7 @@ def results_file(tmp_path: Path) -> Path:
     path = tmp_path / "results.jsonl"
     m = RequestMetrics(
         scenario="test",
-        target_server="s1",
+        target_server="b1",
         target_model="m1",
         conversation="c1",
         turn=0,
@@ -67,7 +67,7 @@ class TestVersion:
     def test_version_flag(self) -> None:
         result = runner.invoke(app, ["--version"])
         assert result.exit_code == 0
-        assert "0.5.1" in result.output
+        assert "0.6.0" in result.output
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +80,7 @@ class TestShowScenario:
         result = runner.invoke(app, ["show-scenario", str(valid_scenario_file)])
         assert result.exit_code == 0
         assert "test" in result.output
-        assert "s1" in result.output
+        assert "b1" in result.output
 
     def test_missing_file(self, tmp_path: Path) -> None:
         result = runner.invoke(app, ["show-scenario", str(tmp_path / "nope.yaml")])
@@ -123,7 +123,7 @@ class TestReport:
     def test_table_format(self, results_file: Path) -> None:
         result = runner.invoke(app, ["report", str(results_file)])
         assert result.exit_code == 0
-        assert "s1" in result.output
+        assert "b1" in result.output
 
     def test_json_format(self, results_file: Path) -> None:
         result = runner.invoke(app, ["report", str(results_file), "--format", "json"])

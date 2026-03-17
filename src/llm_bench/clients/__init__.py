@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from llm_bench.config import Backend, ServerConfig
+from llm_bench.config import Backend, BackendConfig
 
 from .base import BaseClient
 from .litellm import LiteLLMClient
@@ -19,9 +19,9 @@ _REGISTRY: dict[Backend, type[BaseClient]] = {
 }
 
 
-def get_client(server: ServerConfig) -> BaseClient:
+def get_client(server: BackendConfig) -> BaseClient:
     """Instantiate the appropriate client for the given server config."""
-    client_cls = _REGISTRY.get(server.backend, VllmClient)
+    client_cls = _REGISTRY.get(server.type, VllmClient)
     return client_cls(server)
 
 

@@ -141,7 +141,7 @@ These metrics are computed per `(server, model, conversation)` group and display
 |---|---|---|
 | **Turn-to-Turn Ratio** | `mean(TTFT turn > 0) / mean(TTFT turn 0)` | < 1 → KV cache is active and reducing prefill time |
 | **Context Growth Factor** | `mean(E2E last turn) / mean(E2E first turn)` | > 1 → latency increases as context grows |
-| **KV Cache Hit Rate** | Fraction of prompt tokens served from KV cache | SGLang only, from `/get_server_info` |
+| **KV Cache Hit Rate** | Fraction of prompt tokens served from KV cache | SGLang only, from `/metrics` Prometheus |
 | **KV Cache Usage** | GPU KV cache capacity used | vLLM only, from `/metrics` (Prometheus) |
 
 A Turn-to-Turn Ratio close to 0 on a multi-turn scenario confirms the server is effectively reusing cached prefill tokens. Comparing this value between vLLM and SGLang on the same conversation directly measures KV cache efficiency.

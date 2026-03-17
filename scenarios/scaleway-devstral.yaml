@@ -10,12 +10,27 @@ description: >
   Benchmark Devstral-Small-2-24B-Instruct-2512 across three backends via LiteLLM gateway.
   Objectives: resilience check, llama-server vs vLLM comparison, vLLM vs SGLang comparison.
 
-servers:
+backends:
   - name: gateway
     url: http://51.159.145.64:4000
     api_key: ${SCALEWAY_LITELLM_API_KEY}
-    backend: litellm
+    type: litellm
     timeout: 120.0
+
+  - name: gpu-llama
+    url: http://LLAMA_IP:8080
+    type: llamacpp
+    gpu_monitoring: true
+
+  - name: gpu-vllm
+    url: http://VLLM_IP:8000
+    type: vllm
+    gpu_monitoring: true
+
+  - name: gpu-sglang
+    url: http://SGLANG_IP:8000
+    type: sglang
+    gpu_monitoring: true
 
 models:
   - name: devstral-small-llama
@@ -108,33 +123,33 @@ conversations:
 
 targets:
   # --- Baseline: latence par backend ---
-  - server: gateway
+  - backend: gateway
     model: devstral-small-llama
     conversation: short-code-question
 
-  - server: gateway
+  - backend: gateway
     model: devstral-small-vllm
     conversation: short-code-question
 
-  - server: gateway
+  - backend: gateway
     model: devstral-small-sglang
     conversation: short-code-question
 
   # --- KV cache: multi-turn (vLLM vs SGLang) ---
-  - server: gateway
+  - backend: gateway
     model: devstral-small-vllm
     conversation: multi-turn-debug
 
-  - server: gateway
+  - backend: gateway
     model: devstral-small-sglang
     conversation: multi-turn-debug
 
   # --- Prefill stress: long context (vLLM vs SGLang) ---
-  - server: gateway
+  - backend: gateway
     model: devstral-small-vllm
     conversation: long-context
 
-  - server: gateway
+  - backend: gateway
     model: devstral-small-sglang
     conversation: long-context
 

@@ -1,6 +1,6 @@
 docs/plan/
 results/
-*.jsonl
+
 *.csv
 .env
 dist/
@@ -11,3 +11,5 @@ __pycache__/
 .ruff_cache/
 .venv/
 *.egg-info/
+
+.claude/settings.local.json

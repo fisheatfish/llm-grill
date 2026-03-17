@@ -153,11 +153,12 @@ def ping(
     console.rule("[bold]Connectivity check[/]")
 
     async def _check_all() -> None:
-        for server in cfg.servers:
-            async with get_client(server) as client:
+        for b in cfg.backends:
+            async with get_client(b) as client:
                 ok = await client.health()
             icon = "[green]✓[/]" if ok else "[red]✗[/]"
-            console.print(f"  {icon}  {server.name} ({server.backend.value}) — {server.url}")
+            gpu_mon = "  gpu_monitoring=on" if b.gpu_monitoring else ""
+            console.print(f"  {icon}  {b.name} ({b.type.value}) — {b.url}{gpu_mon}")
 
     anyio.run(_check_all)
 
@@ -186,9 +187,10 @@ def show_scenario(
     if cfg.description:
         console.print(f"[dim]{cfg.description}[/]\n")
 
-    console.print("[bold]Servers[/]")
-    for s in cfg.servers:
-        console.print(f"  • [cyan]{s.name}[/] ({s.backend.value}) → {s.url}")
+    console.print("[bold]Backends[/]")
+    for b in cfg.backends:
+        gpu_mon = "  gpu_monitoring=on" if b.gpu_monitoring else ""
+        console.print(f"  • [cyan]{b.name}[/] ({b.type.value}) → {b.url}{gpu_mon}")
 
     console.print("\n[bold]Models[/]")
     for m in cfg.models:
@@ -200,7 +202,7 @@ def show_scenario(
 
     console.print("\n[bold]Targets[/]")
     for t in cfg.targets:
-        console.print(f"  • {t.server} × {t.model} × {t.conversation}")
+        console.print(f"  • {t.backend} × {t.model} × {t.conversation}")
 
     load = cfg.load
     ramp_info = (

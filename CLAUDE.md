@@ -40,7 +40,7 @@ src/llm_bench/
 ├── clients/
 │   ├── base.py       # Classe abstraite BaseClient (méthodes : chat_stream, health, metrics_raw)
 │   ├── vllm.py       # Client vLLM (endpoint /metrics Prometheus)
-│   ├── sglang.py     # Client SGLang (endpoint /get_server_info)
+│   ├── sglang.py     # Client SGLang (endpoint /metrics Prometheus)
 │   ├── llamacpp.py   # Client llama.cpp / llama-server
 │   └── litellm.py    # Client LiteLLM (gateway)
 ├── metrics.py        # dataclass RequestMetrics + fonctions d'agrégation
@@ -159,6 +159,45 @@ La mesure TTFT se fait côté client :
 - TTFT = `t_first - t0`
 - E2E = `t_last - t0`
 - TPOT = `(E2E - TTFT) / max(completion_tokens - 1, 1)`
+
+---
+
+## GPU Monitoring (nvidia-smi via SSH)
+
+Le `GpuMonitor` collecte les métriques GPU (mémoire, utilisation, température, puissance) en exécutant `nvidia-smi` via SSH sur les serveurs cibles.
+
+### Activation dans le scénario YAML
+
+```yaml
+servers:
+  - name: gpu-llama
+    url: http://172.16.0.3:8080
+    backend: llamacpp
+    gpu_monitoring: true          # active le polling nvidia-smi
+    ssh_host: 172.16.0.3         # optionnel, extrait de l'URL si absent
+    ssh_user: root               # défaut : root
+```
+
+### Prérequis SSH
+
+La machine qui lance `llm-bench` (gateway) doit pouvoir faire `ssh root@<serveur-gpu>` **sans mot de passe**.
+
+1. Vérifier qu'une clé existe sur la gateway : `ls ~/.ssh/id_ed25519.pub`
+2. Chercher une clé d'instance Scaleway : `ls ~/.ssh/instance_keys/`
+3. Copier la clé autorisée sur le serveur GPU :
+   ```bash
+   # Depuis une machine ayant déjà accès au serveur GPU :
+   cat /root/.ssh/authorized_keys   # sur la gateway
+   # Ajouter la clé pub dans /root/.ssh/authorized_keys du serveur GPU
+   ```
+4. Tester : `ssh -o ConnectTimeout=5 root@172.16.0.3 "nvidia-smi --query-gpu=index --format=csv,noheader"`
+
+> **Note** : `ssh-copy-id` ne fonctionne pas si le serveur GPU refuse déjà l'auth par mot de passe. Il faut copier la clé via un autre canal (console Scaleway, autre machine avec accès).
+
+### Debug
+
+- Lancer avec `--verbose` pour voir les logs du `GpuMonitor`
+- Si les champs `gpu_*` sont tous `null` dans le JSONL → le SSH ne fonctionne pas ou `gpu_monitoring` n'est pas activé
 
 ---
 

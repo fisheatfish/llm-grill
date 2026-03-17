@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from statistics import mean, median, quantiles
 
@@ -26,8 +26,20 @@ class RequestMetrics:
     tokens_per_second: float
     success: bool
     error: str | None = None
-    backend_metrics: dict = field(default_factory=dict)
     concurrent_users_level: int = 0
+    run_id: str = ""
+    # Backend metrics (canonical keys, populated by clients)
+    kv_cache_usage: float | None = None
+    cache_hit_rate: float | None = None
+    requests_running: float | None = None
+    requests_waiting: float | None = None
+    # GPU metrics (populated by gpu_monitor)
+    gpu_mem_used_mib: float | None = None
+    gpu_mem_total_mib: float | None = None
+    gpu_util_pct: float | None = None
+    gpu_temp_c_max: float | None = None
+    gpu_power_w_total: float | None = None
+    gpu_mem_util_pct_avg: float | None = None
 
     def to_jsonl(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False)
@@ -175,10 +187,8 @@ def _compute_conversation_metrics(results: list[RequestMetrics]) -> Conversation
 
     turn_to_turn_ratio = _turn_to_turn_ratio(ttft_by_turn)
     context_growth_factor = _context_growth_factor(e2e_by_turn)
-    kv_cache_hit_rate_mean = _extract_backend_metric(successful, ["cache_hit_rate"])
-    kv_cache_usage_mean = _extract_backend_metric(
-        successful, ["vllm:kv_cache_usage_perc", "vllm:gpu_cache_usage_perc", "kv_cache_usage"]
-    )
+    kv_cache_hit_rate_mean = _mean_attr(successful, "cache_hit_rate")
+    kv_cache_usage_mean = _mean_attr(successful, "kv_cache_usage")
 
     r0 = results[0]
     return ConversationMetrics(
@@ -224,16 +234,7 @@ def _context_growth_factor(e2e_by_turn: dict[int, float]) -> float | None:
     return last / first if first else None
 
 
-def _extract_backend_metric(results: list[RequestMetrics], keys: list[str]) -> float | None:
-    """Average a backend_metrics field across requests, trying each key in order."""
-    values: list[float] = []
-    for r in results:
-        for key in keys:
-            val = r.backend_metrics.get(key)
-            if val is not None:
-                try:
-                    values.append(float(val))
-                except (TypeError, ValueError):
-                    pass
-                break
+def _mean_attr(results: list[RequestMetrics], attr: str) -> float | None:
+    """Average a numeric attribute across requests, skipping None values."""
+    values = [v for r in results if (v := getattr(r, attr, None)) is not None]
     return mean(values) if values else None
