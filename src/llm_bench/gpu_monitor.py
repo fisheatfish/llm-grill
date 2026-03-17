@@ -14,7 +14,11 @@ from llm_bench.config import BackendConfig
 
 logger = logging.getLogger(__name__)
 
-_NVIDIA_SMI_QUERY = "index,memory.used,memory.total,utilization.gpu,temperature.gpu,power.draw"
+_NVIDIA_SMI_QUERY = (
+    "index,memory.used,memory.total,utilization.gpu,temperature.gpu,"
+    "power.draw,pcie.link.gen.current,pcie.link.width.current,"
+    "utilization.memory,clocks.current.sm"
+)
 _MAX_SNAPSHOTS = 500
 
 
@@ -26,6 +30,7 @@ class GpuSnapshot:
     mem_used_mib_total: float = 0.0
     mem_total_mib_total: float = 0.0
     util_pct_avg: float = 0.0
+    mem_util_pct_avg: float = 0.0
 
 
 class GpuMonitor:
@@ -55,11 +60,18 @@ class GpuMonitor:
             candidates.append(idx - 1)
         best = min(candidates, key=lambda i: abs(ts_list[i] - timestamp))
         snap = self._snapshots[host][best]
-        return {
+        result = {
             "gpu_mem_used_mib": snap.mem_used_mib_total,
             "gpu_mem_total_mib": snap.mem_total_mib_total,
             "gpu_util_pct": snap.util_pct_avg,
+            "gpu_temp_c_max": max((g["temp_c"] for g in snap.gpus), default=None),
+            "gpu_power_w_total": sum(g["power_w"] for g in snap.gpus) if snap.gpus else None,
+            "gpu_mem_util_pct_avg": snap.mem_util_pct_avg,
         }
+        # Include per-GPU details for multi-GPU setups
+        if len(snap.gpus) > 1:
+            result["gpu_per_device"] = snap.gpus
+        return result
 
     async def _poll_host(self, cfg: BackendConfig) -> None:
         host = cfg.ssh_host
@@ -108,22 +120,30 @@ def _parse_nvidia_csv(output: str, host: str) -> GpuSnapshot:
         if len(parts) < 6:
             continue
         try:
-            gpus.append(
-                {
-                    "gpu_index": int(parts[0]),
-                    "mem_used_mib": float(parts[1]),
-                    "mem_total_mib": float(parts[2]),
-                    "util_pct": float(parts[3]),
-                    "temp_c": float(parts[4]),
-                    "power_w": float(parts[5]),
-                }
-            )
+            gpu: dict = {
+                "gpu_index": int(parts[0]),
+                "mem_used_mib": float(parts[1]),
+                "mem_total_mib": float(parts[2]),
+                "util_pct": float(parts[3]),
+                "temp_c": float(parts[4]),
+                "power_w": float(parts[5]),
+            }
+            # Optional fields — may return [N/A] on some GPUs
+            if len(parts) > 6:
+                gpu["pcie_gen"] = _safe_int(parts[6])
+                gpu["pcie_width"] = _safe_int(parts[7])
+            if len(parts) > 8:
+                gpu["mem_util_pct"] = _safe_float(parts[8])
+            if len(parts) > 9:
+                gpu["sm_clock_mhz"] = _safe_float(parts[9])
+            gpus.append(gpu)
         except (ValueError, IndexError):
             continue
 
     mem_used = sum(g["mem_used_mib"] for g in gpus)
     mem_total = sum(g["mem_total_mib"] for g in gpus)
     util_avg = sum(g["util_pct"] for g in gpus) / len(gpus) if gpus else 0.0
+    mem_util_avg = sum(g.get("mem_util_pct", 0) for g in gpus) / len(gpus) if gpus else 0.0
 
     return GpuSnapshot(
         timestamp=0.0,
@@ -132,4 +152,19 @@ def _parse_nvidia_csv(output: str, host: str) -> GpuSnapshot:
         mem_used_mib_total=mem_used,
         mem_total_mib_total=mem_total,
         util_pct_avg=util_avg,
+        mem_util_pct_avg=mem_util_avg,
     )
+
+
+def _safe_float(val: str) -> float | None:
+    try:
+        return float(val)
+    except ValueError:
+        return None
+
+
+def _safe_int(val: str) -> int | None:
+    try:
+        return int(val)
+    except ValueError:
+        return None
