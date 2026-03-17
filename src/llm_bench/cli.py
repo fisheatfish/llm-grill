@@ -153,20 +153,12 @@ def ping(
     console.rule("[bold]Connectivity check[/]")
 
     async def _check_all() -> None:
-        for server in cfg.servers:
-            async with get_client(server) as client:
+        for b in cfg.backends:
+            async with get_client(b) as client:
                 ok = await client.health()
             icon = "[green]✓[/]" if ok else "[red]✗[/]"
-            console.print(f"  {icon}  {server.name} ({server.backend.value}) — {server.url}")
-
-        if cfg.backends:
-            console.print("\n[bold]Backends[/]")
-            for b in cfg.backends:
-                async with get_client(b.to_server_config()) as client:
-                    ok = await client.health()
-                icon = "[green]✓[/]" if ok else "[red]✗[/]"
-                ssh_info = f"  ssh={b.ssh_host}" if b.ssh_host else ""
-                console.print(f"  {icon}  {b.name} ({b.type.value}) — {b.url}{ssh_info}")
+            gpu_mon = "  gpu_monitoring=on" if b.gpu_monitoring else ""
+            console.print(f"  {icon}  {b.name} ({b.type.value}) — {b.url}{gpu_mon}")
 
     anyio.run(_check_all)
 
@@ -195,9 +187,12 @@ def show_scenario(
     if cfg.description:
         console.print(f"[dim]{cfg.description}[/]\n")
 
-    console.print("[bold]Servers[/]")
-    for s in cfg.servers:
-        console.print(f"  • [cyan]{s.name}[/] ({s.backend.value}) → {s.url}")
+    console.print("[bold]Backends[/]")
+    for b in cfg.backends:
+        gpu_mon = "  gpu_monitoring=on" if b.gpu_monitoring else ""
+        console.print(
+            f"  • [cyan]{b.name}[/] ({b.type.value}) → {b.url}{gpu_mon}"
+        )
 
     console.print("\n[bold]Models[/]")
     for m in cfg.models:
@@ -207,20 +202,9 @@ def show_scenario(
     for c in cfg.conversations:
         console.print(f"  • [yellow]{c.name}[/]  ({len(c.turns)} turns)")
 
-    if cfg.backends:
-        console.print("\n[bold]Backends[/]")
-        for b in cfg.backends:
-            gpu_info = f"  gpu={b.gpu_type}" if b.gpu_type else ""
-            dtype_info = f"  dtype={b.model_dtype}" if b.model_dtype else ""
-            ssh_info = f"  ssh={b.ssh_host}" if b.ssh_host else ""
-            console.print(
-                f"  • [green]{b.name}[/] ({b.type.value}) → {b.url}{gpu_info}{dtype_info}{ssh_info}"
-            )
-
     console.print("\n[bold]Targets[/]")
     for t in cfg.targets:
-        backend_info = f" → backend={t.backend}" if t.backend else ""
-        console.print(f"  • {t.server} × {t.model} × {t.conversation}{backend_info}")
+        console.print(f"  • {t.backend} × {t.model} × {t.conversation}")
 
     load = cfg.load
     ramp_info = (

@@ -10,12 +10,27 @@ description: >
   Benchmark Devstral-Small-2-24B-Instruct-2512 across three backends via LiteLLM gateway.
   Objectives: resilience check, llama-server vs vLLM comparison, vLLM vs SGLang comparison.
 
-servers:
+backends:
   - name: gateway
     url: http://51.159.145.64:4000
     api_key: ${SCALEWAY_LITELLM_API_KEY}
-    backend: litellm
+    type: litellm
     timeout: 120.0
+
+  - name: gpu-llama
+    url: http://LLAMA_IP:8080
+    type: llamacpp
+    gpu_monitoring: true
+
+  - name: gpu-vllm
+    url: http://VLLM_IP:8000
+    type: vllm
+    gpu_monitoring: true
+
+  - name: gpu-sglang
+    url: http://SGLANG_IP:8000
+    type: sglang
+    gpu_monitoring: true
 
 models:
   - name: devstral-small-llama
@@ -106,64 +121,37 @@ conversations:
 
           Focus on: algorithmic complexity, memory usage, and Python idioms.
 
-backends:
-  - name: gpu-llama
-    url: http://LLAMA_IP:8080
-    type: llamacpp
-    ssh_host: LLAMA_IP
-    gpu_type: L40S
-    model_dtype: gguf-q8
-  - name: gpu-vllm
-    url: http://VLLM_IP:8000
-    type: vllm
-    ssh_host: VLLM_IP
-    gpu_type: H100
-    model_dtype: bf16
-  - name: gpu-sglang
-    url: http://SGLANG_IP:8000
-    type: sglang
-    ssh_host: SGLANG_IP
-    gpu_type: H100
-    model_dtype: bf16
-
 targets:
   # --- Baseline: latence par backend ---
-  - server: gateway
+  - backend: gateway
     model: devstral-small-llama
     conversation: short-code-question
-    backend: gpu-llama
 
-  - server: gateway
+  - backend: gateway
     model: devstral-small-vllm
     conversation: short-code-question
-    backend: gpu-vllm
 
-  - server: gateway
+  - backend: gateway
     model: devstral-small-sglang
     conversation: short-code-question
-    backend: gpu-sglang
 
   # --- KV cache: multi-turn (vLLM vs SGLang) ---
-  - server: gateway
+  - backend: gateway
     model: devstral-small-vllm
     conversation: multi-turn-debug
-    backend: gpu-vllm
 
-  - server: gateway
+  - backend: gateway
     model: devstral-small-sglang
     conversation: multi-turn-debug
-    backend: gpu-sglang
 
   # --- Prefill stress: long context (vLLM vs SGLang) ---
-  - server: gateway
+  - backend: gateway
     model: devstral-small-vllm
     conversation: long-context
-    backend: gpu-vllm
 
-  - server: gateway
+  - backend: gateway
     model: devstral-small-sglang
     conversation: long-context
-    backend: gpu-sglang
 
 load:
   concurrent_users: 10

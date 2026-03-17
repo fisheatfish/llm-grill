@@ -9,7 +9,7 @@ import respx
 from httpx import Response
 
 from llm_bench.clients import get_client
-from llm_bench.config import Backend, Message, ModelConfig, ServerConfig
+from llm_bench.config import Backend, Message, ModelConfig, BackendConfig
 
 
 def _sse_body(tokens: list[str], model: str = "m", prompt_tokens: int = 10) -> bytes:
@@ -35,11 +35,11 @@ def _sse_body(tokens: list[str], model: str = "m", prompt_tokens: int = 10) -> b
 
 
 @pytest.fixture()
-def vllm_server() -> ServerConfig:
-    return ServerConfig(
+def vllm_server() -> BackendConfig:
+    return BackendConfig(
         name="vllm-test",
         url="http://test-vllm:8000",
-        backend=Backend.vllm,
+        type=Backend.vllm,
     )
 
 
@@ -54,7 +54,7 @@ def messages() -> list[Message]:
 
 
 class TestGetClient:
-    def test_returns_vllm_client(self, vllm_server: ServerConfig) -> None:
+    def test_returns_vllm_client(self, vllm_server: BackendConfig) -> None:
         from llm_bench.clients.vllm import VllmClient
 
         client = get_client(vllm_server)
@@ -63,13 +63,13 @@ class TestGetClient:
     def test_returns_sglang_client(self) -> None:
         from llm_bench.clients.sglang import SglangClient
 
-        server = ServerConfig(name="s", url="http://localhost:30000", backend=Backend.sglang)
+        server = BackendConfig(name="s", url="http://localhost:30000", type=Backend.sglang)
         assert isinstance(get_client(server), SglangClient)
 
     def test_returns_llamacpp_client(self) -> None:
         from llm_bench.clients.llamacpp import LlamaCppClient
 
-        server = ServerConfig(name="s", url="http://localhost:8080", backend=Backend.llamacpp)
+        server = BackendConfig(name="s", url="http://localhost:8080", type=Backend.llamacpp)
         assert isinstance(get_client(server), LlamaCppClient)
 
 
@@ -78,7 +78,7 @@ class TestVllmClientComplete:
     @respx.mock
     async def test_complete_success(
         self,
-        vllm_server: ServerConfig,
+        vllm_server: BackendConfig,
         model: ModelConfig,
         messages: list[Message],
     ) -> None:
@@ -101,7 +101,7 @@ class TestVllmClientComplete:
     @respx.mock
     async def test_complete_http_error(
         self,
-        vllm_server: ServerConfig,
+        vllm_server: BackendConfig,
         model: ModelConfig,
         messages: list[Message],
     ) -> None:
@@ -113,13 +113,13 @@ class TestVllmClientComplete:
                 await client.complete(messages, model)
 
     @respx.mock
-    async def test_health_ok(self, vllm_server: ServerConfig) -> None:
+    async def test_health_ok(self, vllm_server: BackendConfig) -> None:
         respx.get("http://test-vllm:8000/health").mock(return_value=Response(200))
         async with get_client(vllm_server) as client:
             assert await client.health() is True
 
     @respx.mock
-    async def test_health_down(self, vllm_server: ServerConfig) -> None:
+    async def test_health_down(self, vllm_server: BackendConfig) -> None:
         respx.get("http://test-vllm:8000/health").mock(return_value=Response(503))
         async with get_client(vllm_server) as client:
             assert await client.health() is False

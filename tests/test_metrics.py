@@ -124,15 +124,11 @@ class TestRequestMetrics:
             tokens_per_second=40.0,
             success=True,
             run_id="abc12345",
-            gpu_type="H100",
-            model_dtype="bf16",
             gpu_util_pct=85.0,
             gpu_mem_used_mib=4000,
         )
         parsed = json.loads(m.to_jsonl())
         assert parsed["run_id"] == "abc12345"
-        assert parsed["gpu_type"] == "H100"
-        assert parsed["model_dtype"] == "bf16"
         assert parsed["gpu_util_pct"] == 85.0
 
 

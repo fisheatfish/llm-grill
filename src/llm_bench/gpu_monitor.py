@@ -35,7 +35,7 @@ class GpuSnapshot:
 
 class GpuMonitor:
     def __init__(self, backends: list[BackendConfig], poll_interval: float = 2.0) -> None:
-        self._backends = [b for b in backends if b.ssh_host]
+        self._backends = [b for b in backends if b.effective_ssh_host]
         self._poll_interval = poll_interval
         self._snapshots: dict[str, list[GpuSnapshot]] = defaultdict(list)
         self._timestamps: dict[str, list[float]] = defaultdict(list)
@@ -74,7 +74,7 @@ class GpuMonitor:
         return result
 
     async def _poll_host(self, cfg: BackendConfig) -> None:
-        host = cfg.ssh_host
+        host = cfg.effective_ssh_host
         assert host is not None
         user = cfg.ssh_user
         cmd = [

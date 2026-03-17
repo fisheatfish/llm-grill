@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from llm_bench.config import Message, ModelConfig, ServerConfig
+from llm_bench.config import Message, ModelConfig, BackendConfig
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class StreamResult:
 
 
 class BaseClient(ABC):
-    def __init__(self, server: ServerConfig) -> None:
+    def __init__(self, server: BackendConfig) -> None:
         self.server = server
         base = str(server.url).rstrip("/")
         headers = {}

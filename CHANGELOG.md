@@ -12,21 +12,31 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [0.6.0] - 2026-03-17
 
 ### Added
-- **GPU metrics collection** — `GpuMonitor` polls nvidia-smi over SSH at configurable intervals (default 2s), captures per-GPU snapshots (memory, utilization, temperature, power, PCIe, clocks) and attaches nearest timestamp match to each `RequestMetrics`
-- **BackendConfig** — new optional configuration for GPU monitoring with fields: `ssh_host`, `ssh_user` (default "root"), `gpu_type`, `model_dtype`
-- **GPU metrics in RequestMetrics** — fields added: `gpu_mem_used_mib`, `gpu_mem_total_mib`, `gpu_util_pct`, `gpu_temp_c_max`, `gpu_power_w_total`, `gpu_mem_util_pct_avg`, `gpu_type`
-- **Flattened metrics structure** — backend-specific metrics (KV cache usage, hit rate) and GPU metrics are now top-level fields in `RequestMetrics` instead of nested `backend_metrics` dict — improves CSV export and pandas analysis
-- **Enhanced Prometheus metrics** — `SglangClient` now fetches both Prometheus metrics (`/metrics`) and server info (`/get_server_info`) for comprehensive KV cache reporting
-- **Multi-GPU support** — `GpuSnapshot` includes per-device details for multi-GPU setups in `gpu_per_device` field
+- **GPU metrics collection** — `GpuMonitor` polls `nvidia-smi` over SSH at configurable intervals (default 2s), captures per-GPU snapshots (memory, utilization, temperature, power, PCIe gen/width, SM clock) and attaches nearest-timestamp match to each request result
+- **`gpu_monitoring: true`** flag on `BackendConfig` — enables GPU metrics collection ; SSH host is extracted from `url` automatically (`ssh_host` remains as optional override for bastion/management network setups)
+- **GPU metrics as top-level fields** in `RequestMetrics` — `gpu_mem_used_mib`, `gpu_mem_total_mib`, `gpu_util_pct`, `gpu_temp_c_max`, `gpu_power_w_total`, `gpu_mem_util_pct_avg`
+- **SGLang Prometheus scraping** — `SglangClient` now fetches `/metrics` (Prometheus) for `cache_hit_rate` and `num_running_reqs` in addition to `/get_server_info` for KV cache usage — fixes previously always-null values
+- **Multi-GPU support** — `GpuSnapshot` includes per-device details for multi-GPU setups
+- **ADR 002** — documents why a custom tool was built vs existing alternatives (LLMPerf, GenAI-Perf, Locust, vLLM benchmark_serving.py)
 
 ### Changed
-- `RequestMetrics` structure refactored — `backend_metrics` dict removed, all metrics flattened to top level with consistent naming (`kv_cache_usage`, `kv_cache_hit_rate`, `vllm_*`, `sglang_*`)
-- Metric naming standardized — `kv_cache_usage_perc` → `kv_cache_usage` (0-1 range), `cache_hit_rate` → `kv_cache_hit_rate`
-- `VllmClient` and `SglangClient` use consistent metric key prefixes (`vllm:*`, `sglang:*`)
+- **`servers` + `backends` merged into `backends`** — single YAML section replaces the redundant `servers`/`backends` split ; `ServerConfig` removed, `BackendConfig` is now the unified config (carries `url`, `api_key`, `timeout`, `type`, `ssh_host`, `ssh_user`, `gpu_monitoring`)
+- **`BenchmarkTarget` simplified** — `server` (required) + `backend` (optional) replaced by a single required `backend` field referencing `backends[].name`
+- **Flat `RequestMetrics`** — `backend_metrics: dict` and `gpu_metrics: dict` removed ; all metrics are top-level typed fields (`kv_cache_usage`, `cache_hit_rate`, `requests_running`, `requests_waiting`, `gpu_*`) — `pd.read_json(lines=True)` gives columns directly
+- **Canonical backend metric keys** — all clients now return the same keys (`kv_cache_usage`, `cache_hit_rate`, `requests_running`, `requests_waiting`) regardless of backend ; no more `vllm:` prefixes or `num_running_reqs` vs `num_requests_running` inconsistency
+- `gpu_type` and `model_dtype` removed from config and output — these are infrastructure metadata, not benchmark data
+
+### Removed
+- `ServerConfig` class — replaced by `BackendConfig`
+- `BackendConfig.to_server_config()` bridge method — no longer needed
+- `ScenarioConfig.servers` field and `get_server()` method
+- `RequestMetrics.backend_metrics` and `RequestMetrics.gpu_metrics` nested dicts
+- `_flatten()` helper in `report.py` — no more nested dicts to flatten
+- `_extract_backend_metric()` in `metrics.py` — replaced by direct attribute access
 
 ### Fixed
-- GPU polling error handling — SSH connection failures and nvidia-smi errors logged at debug level, don't crash the monitor task
-- CSV export now includes all GPU and backend-specific metrics as columns
+- SGLang `cache_hit_rate` and `num_running_reqs` always null — now scraped from `/metrics` Prometheus endpoint
+- `insitu-scaleway-devstral.yaml` targets referenced non-existent `server: gateway` — now correctly point to backend names
 
 ## [0.5.1] - 2026-03-11
 

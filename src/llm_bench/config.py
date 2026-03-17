@@ -1,4 +1,4 @@
-"""Pydantic schemas for servers, models, and benchmark scenarios."""
+"""Pydantic schemas for backends, models, and benchmark scenarios."""
 
 from __future__ import annotations
 
@@ -27,12 +27,15 @@ class Backend(StrEnum):
     openai = "openai"
 
 
-class ServerConfig(BaseModel):
+class BackendConfig(BaseModel):
     name: str
     url: HttpUrl
+    type: Backend = Backend.openai
     api_key: str = "none"
-    backend: Backend = Backend.openai
     timeout: PositiveFloat = 120.0
+    gpu_monitoring: bool = False
+    ssh_host: str | None = None
+    ssh_user: str = "root"
 
     @field_validator("api_key", mode="before")
     @classmethod
@@ -46,6 +49,15 @@ class ServerConfig(BaseModel):
                 raise ValueError(f"Environment variable '{var_name}' is not set")
             return value
         return v
+
+    @property
+    def effective_ssh_host(self) -> str | None:
+        """SSH host for GPU monitoring: explicit ssh_host, or extracted from url."""
+        if not self.gpu_monitoring:
+            return None
+        if self.ssh_host:
+            return self.ssh_host
+        return str(self.url).split("://")[1].split(":")[0].split("/")[0]
 
 
 class ModelConfig(BaseModel):
@@ -81,47 +93,32 @@ class LoadConfig(BaseModel):
     ramp_pause_seconds: Annotated[float, Field(ge=0.0)] = 10.0
 
 
-class BackendConfig(BaseModel):
-    name: str
-    url: HttpUrl
-    type: Backend
-    ssh_host: str | None = None
-    ssh_user: str = "root"
-    gpu_type: str | None = None
-    model_dtype: str | None = None
-
-    def to_server_config(self) -> ServerConfig:
-        return ServerConfig(name=self.name, url=self.url, backend=self.type, api_key="none")
-
-
 class BenchmarkTarget(BaseModel):
-    server: str
+    backend: str
     model: str
     conversation: str
-    backend: str | None = None
 
 
 class ScenarioConfig(BaseModel):
     name: str
     description: str = ""
-    servers: list[ServerConfig]
+    backends: list[BackendConfig]
     models: list[ModelConfig]
     conversations: list[ConversationTemplate]
     targets: list[BenchmarkTarget]
     load: LoadConfig = Field(default_factory=LoadConfig)
-    backends: list[BackendConfig] = Field(default_factory=list)
     run_id: str = Field(default_factory=lambda: uuid4().hex[:8])
 
     @model_validator(mode="after")
     def validate_target_references(self) -> ScenarioConfig:
-        server_names = {s.name for s in self.servers}
+        backend_names = {b.name for b in self.backends}
         model_names = {m.name for m in self.models}
         conv_names = {c.name for c in self.conversations}
         for t in self.targets:
-            if t.server not in server_names:
+            if t.backend not in backend_names:
                 raise ValueError(
-                    f"Target references unknown server '{t.server}'. "
-                    f"Available: {sorted(server_names)}"
+                    f"Target references unknown backend '{t.backend}'. "
+                    f"Available: {sorted(backend_names)}"
                 )
             if t.model not in model_names:
                 raise ValueError(
@@ -132,20 +129,13 @@ class ScenarioConfig(BaseModel):
                     f"Target references unknown conversation '{t.conversation}'. "
                     f"Available: {sorted(conv_names)}"
                 )
-        backend_names = {b.name for b in self.backends}
-        for t in self.targets:
-            if t.backend is not None and t.backend not in backend_names:
-                raise ValueError(
-                    f"Target references unknown backend '{t.backend}'. "
-                    f"Available: {sorted(backend_names)}"
-                )
         return self
 
-    def get_server(self, name: str) -> ServerConfig:
-        for s in self.servers:
-            if s.name == name:
-                return s
-        raise KeyError(f"Server '{name}' not found")
+    def get_backend(self, name: str) -> BackendConfig:
+        for b in self.backends:
+            if b.name == name:
+                return b
+        raise KeyError(f"Backend '{name}' not found")
 
     def get_model(self, name: str) -> ModelConfig:
         for m in self.models:
@@ -158,9 +148,3 @@ class ScenarioConfig(BaseModel):
             if c.name == name:
                 return c
         raise KeyError(f"Conversation '{name}' not found")
-
-    def get_backend(self, name: str) -> BackendConfig:
-        for b in self.backends:
-            if b.name == name:
-                return b
-        raise KeyError(f"Backend '{name}' not found")

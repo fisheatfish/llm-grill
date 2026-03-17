@@ -28,8 +28,6 @@ class RequestMetrics:
     error: str | None = None
     concurrent_users_level: int = 0
     run_id: str = ""
-    gpu_type: str | None = None
-    model_dtype: str | None = None
     # Backend metrics (canonical keys, populated by clients)
     kv_cache_usage: float | None = None
     cache_hit_rate: float | None = None

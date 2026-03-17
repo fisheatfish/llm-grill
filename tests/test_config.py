@@ -15,25 +15,57 @@ from llm_bench.config import (
     Message,
     ModelConfig,
     ScenarioConfig,
-    ServerConfig,
 )
 from llm_bench.scenario import load_scenario
 
 
-class TestServerConfig:
+class TestBackendConfig:
     def test_valid(self) -> None:
-        s = ServerConfig(name="s1", url="http://localhost:8000", backend=Backend.vllm)
-        assert s.name == "s1"
-        assert s.backend == Backend.vllm
-        assert s.timeout == 120.0
+        b = BackendConfig(name="b1", url="http://localhost:8000", type=Backend.vllm)
+        assert b.name == "b1"
+        assert b.type == Backend.vllm
+        assert b.timeout == 120.0
+        assert b.gpu_monitoring is False
+        assert b.effective_ssh_host is None
+
+    def test_gpu_monitoring_extracts_host_from_url(self) -> None:
+        b = BackendConfig(
+            name="b1", url="http://10.0.0.1:8000", type=Backend.vllm, gpu_monitoring=True
+        )
+        assert b.effective_ssh_host == "10.0.0.1"
+
+    def test_gpu_monitoring_ssh_host_override(self) -> None:
+        b = BackendConfig(
+            name="b1",
+            url="http://10.0.0.1:8000",
+            type=Backend.vllm,
+            gpu_monitoring=True,
+            ssh_host="bastion.internal",
+        )
+        assert b.effective_ssh_host == "bastion.internal"
 
     def test_invalid_url(self) -> None:
         with pytest.raises(Exception):
-            ServerConfig(name="s1", url="not-a-url")
+            BackendConfig(name="b1", url="not-a-url", type=Backend.vllm)
 
-    def test_default_backend(self) -> None:
-        s = ServerConfig(name="s1", url="http://localhost:8000")
-        assert s.backend == Backend.openai
+    def test_default_type(self) -> None:
+        b = BackendConfig(name="b1", url="http://localhost:8000")
+        assert b.type == Backend.openai
+
+    def test_with_all_fields(self) -> None:
+        b = BackendConfig(
+            name="b1",
+            url="http://10.0.0.1:8000",
+            type=Backend.sglang,
+            api_key="secret",
+            timeout=60.0,
+            gpu_monitoring=True,
+            ssh_user="admin",
+        )
+        assert b.ssh_user == "admin"
+        assert b.api_key == "secret"
+        assert b.timeout == 60.0
+        assert b.effective_ssh_host == "10.0.0.1"
 
 
 class TestModelConfig:
@@ -67,13 +99,13 @@ class TestConversationTemplate:
 
 
 class TestScenarioConfig:
-    def test_get_server(self, scenario: ScenarioConfig) -> None:
-        s = scenario.get_server("test-vllm")
-        assert s.name == "test-vllm"
+    def test_get_backend(self, scenario: ScenarioConfig) -> None:
+        b = scenario.get_backend("test-vllm")
+        assert b.name == "test-vllm"
 
-    def test_get_server_missing(self, scenario: ScenarioConfig) -> None:
+    def test_get_backend_missing(self, scenario: ScenarioConfig) -> None:
         with pytest.raises(KeyError):
-            scenario.get_server("nonexistent")
+            scenario.get_backend("nonexistent")
 
     def test_get_model(self, scenario: ScenarioConfig) -> None:
         m = scenario.get_model("test-model")
@@ -84,107 +116,40 @@ class TestScenarioConfig:
         assert c.name == "simple"
 
 
-class TestBackendConfig:
+class TestBenchmarkTarget:
     def test_valid(self) -> None:
-        b = BackendConfig(name="gpu-vllm", url="http://10.0.0.1:8000", type=Backend.vllm)
-        assert b.name == "gpu-vllm"
-        assert b.ssh_host is None
-        assert b.ssh_user == "root"
-
-    def test_to_server_config(self) -> None:
-        b = BackendConfig(
-            name="gpu-vllm",
-            url="http://10.0.0.1:8000",
-            type=Backend.vllm,
-            ssh_host="10.0.0.1",
-            gpu_type="H100",
-            model_dtype="bf16",
-        )
-        sc = b.to_server_config()
-        assert sc.name == "gpu-vllm"
-        assert sc.backend == Backend.vllm
-        assert sc.api_key == "none"
-
-    def test_with_all_fields(self) -> None:
-        b = BackendConfig(
-            name="b1",
-            url="http://10.0.0.1:8000",
-            type=Backend.sglang,
-            ssh_host="10.0.0.1",
-            ssh_user="admin",
-            gpu_type="L40S",
-            model_dtype="gguf-q8",
-        )
-        assert b.ssh_user == "admin"
-        assert b.gpu_type == "L40S"
-
-
-class TestBenchmarkTargetBackend:
-    def test_backend_optional(self) -> None:
         from llm_bench.config import BenchmarkTarget
 
-        t = BenchmarkTarget(server="s1", model="m1", conversation="c1")
-        assert t.backend is None
-
-    def test_backend_set(self) -> None:
-        from llm_bench.config import BenchmarkTarget
-
-        t = BenchmarkTarget(server="s1", model="m1", conversation="c1", backend="gpu-vllm")
-        assert t.backend == "gpu-vllm"
+        t = BenchmarkTarget(backend="b1", model="m1", conversation="c1")
+        assert t.backend == "b1"
 
     def test_invalid_backend_ref(self) -> None:
         with pytest.raises(Exception, match="unknown backend"):
             ScenarioConfig(
                 name="t",
-                servers=[
-                    ServerConfig(name="s1", url="http://localhost:8000", backend=Backend.vllm)
+                backends=[
+                    BackendConfig(name="b1", url="http://localhost:8000", type=Backend.vllm)
                 ],
                 models=[ModelConfig(name="m1")],
                 conversations=[
                     ConversationTemplate(name="c1", turns=[Message(role="user", content="hi")])
                 ],
                 targets=[
-                    {"server": "s1", "model": "m1", "conversation": "c1", "backend": "nonexistent"}
-                ],
-                backends=[
-                    BackendConfig(name="gpu-vllm", url="http://10.0.0.1:8000", type=Backend.vllm)
+                    {"backend": "nonexistent", "model": "m1", "conversation": "c1"}
                 ],
             )
 
 
-class TestScenarioBackends:
-    def test_retrocompat_no_backends(self, scenario: ScenarioConfig) -> None:
-        assert scenario.backends == []
-
-    def test_get_backend(self) -> None:
-        cfg = ScenarioConfig(
-            name="t",
-            servers=[ServerConfig(name="s1", url="http://localhost:8000", backend=Backend.vllm)],
-            models=[ModelConfig(name="m1")],
-            conversations=[
-                ConversationTemplate(name="c1", turns=[Message(role="user", content="hi")])
-            ],
-            targets=[{"server": "s1", "model": "m1", "conversation": "c1", "backend": "gpu-vllm"}],
-            backends=[
-                BackendConfig(name="gpu-vllm", url="http://10.0.0.1:8000", type=Backend.vllm)
-            ],
-        )
-        b = cfg.get_backend("gpu-vllm")
-        assert b.name == "gpu-vllm"
-
-    def test_get_backend_missing(self, scenario: ScenarioConfig) -> None:
-        with pytest.raises(KeyError):
-            scenario.get_backend("nonexistent")
-
+class TestScenarioValidation:
     def test_run_id_generated(self) -> None:
         cfg = ScenarioConfig(
             name="t",
-            servers=[ServerConfig(name="s1", url="http://localhost:8000")],
+            backends=[BackendConfig(name="b1", url="http://localhost:8000")],
             models=[ModelConfig(name="m1")],
             conversations=[
                 ConversationTemplate(name="c1", turns=[Message(role="user", content="hi")])
             ],
-            targets=[{"server": "s1", "model": "m1", "conversation": "c1"}],
+            targets=[{"backend": "b1", "model": "m1", "conversation": "c1"}],
         )
         assert len(cfg.run_id) == 8
 
@@ -212,16 +177,16 @@ class TestLoadScenario:
     def test_load_valid_yaml(self, tmp_path: Path) -> None:
         data = {
             "name": "test",
-            "servers": [{"name": "s1", "url": "http://localhost:8000", "backend": "vllm"}],
+            "backends": [{"name": "b1", "url": "http://localhost:8000", "type": "vllm"}],
             "models": [{"name": "m1", "max_tokens": 128}],
             "conversations": [{"name": "c1", "turns": [{"role": "user", "content": "hi"}]}],
-            "targets": [{"server": "s1", "model": "m1", "conversation": "c1"}],
+            "targets": [{"backend": "b1", "model": "m1", "conversation": "c1"}],
         }
         f = tmp_path / "scenario.yaml"
         f.write_text(yaml.dump(data))
         cfg = load_scenario(f)
         assert cfg.name == "test"
-        assert len(cfg.servers) == 1
+        assert len(cfg.backends) == 1
 
     def test_load_missing_file(self, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):

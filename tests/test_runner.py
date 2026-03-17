@@ -41,12 +41,12 @@ class TestConversationRunner:
 
         mocker.patch("llm_bench.runner.get_client", return_value=mock_client)
 
-        server = scenario.get_server("test-vllm")
+        backend = scenario.get_backend("test-vllm")
         model = scenario.get_model("test-model")
         conv = scenario.get_conversation("simple")
 
         runner = ConversationRunner(
-            server=server,
+            backend=backend,
             model=model,
             conversation=conv,
             scenario_name="test-scenario",
@@ -78,12 +78,12 @@ class TestConversationRunner:
 
         mocker.patch("llm_bench.runner.get_client", return_value=mock_client)
 
-        server = scenario.get_server("test-vllm")
+        backend = scenario.get_backend("test-vllm")
         model = scenario.get_model("test-model")
         conv = scenario.get_conversation("simple")
 
         runner = ConversationRunner(
-            server=server,
+            backend=backend,
             model=model,
             conversation=conv,
             scenario_name="test-scenario",
@@ -176,12 +176,12 @@ class TestConversationRunnerMetricsClient:
 
         mocker.patch("llm_bench.runner.get_client", return_value=mock_client)
 
-        server = scenario.get_server("test-vllm")
+        backend = scenario.get_backend("test-vllm")
         model = scenario.get_model("test-model")
         conv = scenario.get_conversation("simple")
 
         runner = ConversationRunner(
-            server=server,
+            backend=backend,
             model=model,
             conversation=conv,
             scenario_name="test-scenario",
@@ -191,8 +191,6 @@ class TestConversationRunnerMetricsClient:
             on_result=collected.append,
             metrics_client=mock_metrics_client,
             run_id="test1234",
-            gpu_type="H100",
-            model_dtype="bf16",
         )
         await runner.run()
 
@@ -200,8 +198,6 @@ class TestConversationRunnerMetricsClient:
         m = collected[0]
         assert m.kv_cache_usage == 0.42
         assert m.run_id == "test1234"
-        assert m.gpu_type == "H100"
-        assert m.model_dtype == "bf16"
         # The gateway client's backend_metrics should NOT have been called
         mock_client.backend_metrics.assert_not_called()
         mock_metrics_client.backend_metrics.assert_called_once()
