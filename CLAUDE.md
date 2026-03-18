@@ -7,7 +7,7 @@ Source of truth for build and development. Optimized for Claude Code.
 ## Project
 
 Python CLI benchmark for LLM inference servers.
-Measures TTFT, TPOT, E2E latency, throughput, success rate across multi-conversation multi-server scenarios.
+Measures TTFT, TPOT, E2E latency, throughput, success rate, KV cache effectiveness (turn-to-turn ratio, hit rate, usage), and GPU metrics (utilization, memory, power) via SSH across multi-conversation multi-server scenarios.
 
 **Architecture decisions**: `docs/adr/001-architecture-cli-llm-bench.md`
 **Implementation plan**: `docs/plan/implementation-plan.md` (not versioned)
@@ -35,7 +35,7 @@ Measures TTFT, TPOT, E2E latency, throughput, success rate across multi-conversa
 src/llm_bench/
 ├── __init__.py       # __version__
 ├── cli.py            # Typer app — commands: run, ping, show-scenario, report
-├── config.py         # Pydantic: BackendConfig, ModelConfig, ScenarioConfig, ConversationTemplate
+├── config.py         # Pydantic: BackendConfig, BenchmarkTarget, ModelConfig, ScenarioConfig, ConversationTemplate
 ├── scenario.py       # YAML scenario loading and validation
 ├── clients/
 │   ├── __init__.py   # Client factory — get_client() returns the right subclass per backend
@@ -90,12 +90,15 @@ llm-bench report results.jsonl [--format table|json|csv] [--output out.csv] [--n
 ```yaml
 name: string                        # scenario identifier
 description: string                 # optional
-servers:
+backends:
   - name: string
     url: http://host:port           # base URL (without /v1)
+    type: vllm|sglang|llamacpp|litellm|openai
     api_key: string                 # "none" | literal key | ${ENV_VAR}
-    backend: vllm|sglang|llamacpp|litellm|openai
     timeout: float                  # seconds, default 120 — applies per HTTP request
+    gpu_monitoring: bool            # default false — enable GPU metrics via SSH
+    ssh_host: string                # optional — for GPU metrics collection
+    ssh_user: string                # default "root"
 models:
   - name: string                    # exact model_id as expected by the server
     max_tokens: int                 # default 512
@@ -108,16 +111,9 @@ conversations:
       - role: system|user|assistant
         content: string
 targets:                            # combinations to benchmark
-  - server: string                  # must match servers[].name
+  - backend: string                 # must match backends[].name
     model: string                   # must match models[].name
     conversation: string            # must match conversations[].name
-    backend: string                 # optional — must match backends[].name
-backends:                           # optional — for backend-specific metrics & GPU monitoring
-  - name: string
-    url: http://host:port
-    type: vllm|sglang|llamacpp|litellm|openai
-    ssh_host: string                # optional — for GPU metrics collection
-    ssh_user: string                # default "root"
 load:
   concurrent_users: int             # default 1
   iterations: int                   # default 1 (per user)
@@ -152,10 +148,16 @@ One JSON line per completed request:
   "tokens_per_second": 0.0,
   "success": true,
   "error": null,
-  "backend_metrics": {},
   "concurrent_users_level": 0,
   "run_id": "string",
-  "gpu_metrics": {}
+  "kv_cache_usage": null,
+  "cache_hit_rate": null,
+  "requests_running": null,
+  "requests_waiting": null,
+  "gpu_mem_used_mib": null,
+  "gpu_util_pct": null,
+  "gpu_temp_c_max": null,
+  "gpu_power_w_total": null
 }
 ```
 
@@ -206,9 +208,12 @@ The server-level `timeout` (default 120s) applies to each HTTP request (i.e. per
 ```
 tests/
 ├── conftest.py          # fixtures: mock ScenarioConfig, respx mock server
+├── test_cli.py          # Typer commands via CliRunner
 ├── test_config.py       # Pydantic validation, YAML loading
 ├── test_metrics.py      # TTFT/TPOT/aggregation calculations
 ├── test_clients.py      # clients with respx (SSE mock)
+├── test_gpu_monitor.py  # GPU metrics collection
+├── test_report.py       # CSV export, Rich tables
 └── test_runner.py       # orchestration, concurrency
 ```
 

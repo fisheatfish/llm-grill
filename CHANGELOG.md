@@ -20,15 +20,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **ADR 002** — documents why a custom tool was built vs existing alternatives (LLMPerf, GenAI-Perf, Locust, vLLM benchmark_serving.py)
 
 ### Changed
-- **`servers` + `backends` merged into `backends`** — single YAML section replaces the redundant `servers`/`backends` split ; `BackendConfig` removed, `BackendConfig` is now the unified config (carries `url`, `api_key`, `timeout`, `type`, `ssh_host`, `ssh_user`, `gpu_monitoring`)
+- **`RequestMetrics`, `AggregatedMetrics`, `ConversationMetrics` migrated from `@dataclass` to Pydantic `BaseModel`** — enables `model_dump()`, `model_dump_json()`, `model_validate_json()` ; `asdict()` calls replaced by `model_dump()`, `to_jsonl()` now uses `model_dump_json()`
+- **`servers` + `backends` merged into `backends`** — single YAML section replaces the redundant `servers`/`backends` split ; `ServerConfig` removed, `BackendConfig` is now the unified config (carries `url`, `api_key`, `timeout`, `type`, `ssh_host`, `ssh_user`, `gpu_monitoring`)
 - **`BenchmarkTarget` simplified** — `server` (required) + `backend` (optional) replaced by a single required `backend` field referencing `backends[].name`
 - **Flat `RequestMetrics`** — `backend_metrics: dict` and `gpu_metrics: dict` removed ; all metrics are top-level typed fields (`kv_cache_usage`, `cache_hit_rate`, `requests_running`, `requests_waiting`, `gpu_*`) — `pd.read_json(lines=True)` gives columns directly
 - **Canonical backend metric keys** — all clients now return the same keys (`kv_cache_usage`, `cache_hit_rate`, `requests_running`, `requests_waiting`) regardless of backend ; no more `vllm:` prefixes or `num_running_reqs` vs `num_requests_running` inconsistency
 
 ### Removed
-- `BackendConfig` class — replaced by `BackendConfig`
+- `ServerConfig` class — replaced by `BackendConfig`
 - `BackendConfig.to_server_config()` bridge method — no longer needed
-- `ScenarioConfig.servers` field and `get_backend()` method
+- `BackendConfig.gpu_type` and `BackendConfig.model_dtype` fields — unused after flat metrics refactor
+- `ScenarioConfig.servers` field and `get_server()` method — replaced by `backends` and `get_backend()`
 - `RequestMetrics.backend_metrics` and `RequestMetrics.gpu_metrics` nested dicts
 - `_flatten()` helper in `report.py` — no more nested dicts to flatten
 - `_extract_backend_metric()` in `metrics.py` — replaced by direct attribute access

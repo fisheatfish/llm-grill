@@ -15,9 +15,7 @@ Measures **TTFT**, **TPOT**, **end-to-end latency**, **throughput**, **success r
 Requires **Python 3.11+** and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-git clone https://github.com/fisheatfish/llm-bench.git
-cd llm-bench
-make install   # uv sync --all-extras
+uv tool install llm-bench
 ```
 
 Verify:
