@@ -1,4 +1,4 @@
-# CLAUDE.md — llm-bench
+# CLAUDE.md — llm-grill
 
 Source of truth for build and development. Optimized for Claude Code.
 
@@ -9,7 +9,7 @@ Source of truth for build and development. Optimized for Claude Code.
 Python CLI benchmark for LLM inference servers.
 Measures TTFT, TPOT, E2E latency, throughput, success rate, KV cache effectiveness (turn-to-turn ratio, hit rate, usage), and GPU metrics (utilization, memory, power) via SSH across multi-conversation multi-server scenarios.
 
-**Architecture decisions**: `docs/adr/001-architecture-cli-llm-bench.md`
+**Architecture decisions**: `docs/adr/001-architecture-cli-llm-grill.md`
 **Implementation plan**: `docs/plan/implementation-plan.md` (not versioned)
 
 ---
@@ -32,7 +32,7 @@ Measures TTFT, TPOT, E2E latency, throughput, success rate, KV cache effectivene
 ## Structure
 
 ```
-src/llm_bench/
+src/llm_grill/
 ├── __init__.py       # __version__
 ├── cli.py            # Typer app — commands: run, ping, show-scenario, report
 ├── config.py         # Pydantic: BackendConfig, BenchmarkTarget, ModelConfig, ScenarioConfig, ConversationTemplate
@@ -77,10 +77,10 @@ make build        # uv build
 ## CLI commands
 
 ```bash
-llm-bench run scenarios/foo.yaml [--output results.jsonl] [--format jsonl|csv] [--verbose] [--quiet]
-llm-bench ping scenarios/foo.yaml
-llm-bench show-scenario scenarios/foo.yaml
-llm-bench report results.jsonl [--format table|json|csv] [--output out.csv] [--no-conversations]
+llm-grill run scenarios/foo.yaml [--output results.jsonl] [--format jsonl|csv] [--verbose] [--quiet]
+llm-grill ping scenarios/foo.yaml
+llm-grill show-scenario scenarios/foo.yaml
+llm-grill report results.jsonl [--format table|json|csv] [--output out.csv] [--no-conversations]
 ```
 
 ---
@@ -217,7 +217,7 @@ tests/
 └── test_runner.py       # orchestration, concurrency
 ```
 
-Target coverage: > 80% on `src/llm_bench/`.
+Target coverage: > 80% on `src/llm_grill/`.
 
 ---
 

@@ -1,4 +1,4 @@
-# ADR 001: Architecture CLI llm-bench
+# ADR 001: Architecture CLI llm-grill
 
 **Date:** 2026-03-10
 **Status:** Accepted
@@ -165,7 +165,7 @@ Columnar binary format.
 | Cons | Requires `pyarrow`. Not human-readable. Written only at the end, not streamable. Overkill for benchmark output volume. |
 | Complexity | Low |
 
-**Decision**: JSONL as primary output (written incrementally). CSV export available via `llm-bench report --format csv`. Parquet not implemented in v0.1.
+**Decision**: JSONL as primary output (written incrementally). CSV export available via `llm-grill report --format csv`. Parquet not implemented in v0.1.
 
 ---
 

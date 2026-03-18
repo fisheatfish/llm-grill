@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from llm_bench.metrics import RequestMetrics
-from llm_bench.report import JsonlWriter, export_csv, load_jsonl, print_ramp_table
+from llm_grill.metrics import RequestMetrics
+from llm_grill.report import JsonlWriter, export_csv, load_jsonl, print_ramp_table
 
 
 def _make_result(
@@ -190,7 +190,7 @@ class TestPrintRampTable:
         Then: Keys are sorted by server, model, then level
         """
         # Given
-        from llm_bench.metrics import group_by_level
+        from llm_grill.metrics import group_by_level
 
         results = [
             _make_result(server="b-server", concurrent_users_level=10),

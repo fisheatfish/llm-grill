@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from llm_bench.config import (
+from llm_grill.config import (
     Backend,
     BackendConfig,
     BenchmarkTarget,
@@ -20,7 +20,7 @@ from llm_bench.config import (
     ModelConfig,
     ScenarioConfig,
 )
-from llm_bench.scenario import load_scenario
+from llm_grill.scenario import load_scenario
 
 
 class TestBackendConfig:

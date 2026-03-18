@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from llm_bench.config import Backend, BackendConfig
+from llm_grill.config import Backend, BackendConfig
 
 from .base import BaseClient
 from .litellm import LiteLLMClient

@@ -223,7 +223,7 @@ wheels = [
 ]
 
 [[package]]
-name = "llm-bench"
+name = "llm-grill"
 source = { editable = "." }
 dependencies = [
     { name = "anyio" },

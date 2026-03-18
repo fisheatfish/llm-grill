@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import pytest
 
-from llm_bench.clients.base import StreamResult
-from llm_bench.config import LoadConfig, ScenarioConfig
-from llm_bench.metrics import RequestMetrics
-from llm_bench.runner import BenchmarkRunner, ConversationRunner, RampRunner
+from llm_grill.clients.base import StreamResult
+from llm_grill.config import LoadConfig, ScenarioConfig
+from llm_grill.metrics import RequestMetrics
+from llm_grill.runner import BenchmarkRunner, ConversationRunner, RampRunner
 
 
 @pytest.fixture()
@@ -36,7 +36,7 @@ def mock_client(mocker, mock_stream_result):
     client.__aexit__ = mocker.AsyncMock(return_value=None)
     client.complete = mocker.AsyncMock(return_value=mock_stream_result)
     client.backend_metrics = mocker.AsyncMock(return_value={})
-    mocker.patch("llm_bench.runner.get_client", return_value=client)
+    mocker.patch("llm_grill.runner.get_client", return_value=client)
     return client
 
 

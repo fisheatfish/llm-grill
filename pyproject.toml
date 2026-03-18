@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "llm-bench"
+name = "llm-grill"
 dynamic = ["version"]
 description = "CLI for benchmarking LLM inference servers (vLLM, SGLang, llama.cpp)"
 readme = "README.md"
@@ -48,19 +48,19 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/fisheatfish/llm-bench"
-Repository = "https://github.com/fisheatfish/llm-bench"
-Issues = "https://github.com/fisheatfish/llm-bench/issues"
-Changelog = "https://github.com/fisheatfish/llm-bench/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/fisheatfish/llm-grill"
+Repository = "https://github.com/fisheatfish/llm-grill"
+Issues = "https://github.com/fisheatfish/llm-grill/issues"
+Changelog = "https://github.com/fisheatfish/llm-grill/blob/main/CHANGELOG.md"
 
 [project.scripts]
-llm-bench = "llm_bench.cli:app"
+llm-grill = "llm_grill.cli:app"
 
 [tool.hatch.version]
-path = "src/llm_bench/__init__.py"
+path = "src/llm_grill/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/llm_bench"]
+packages = ["src/llm_grill"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

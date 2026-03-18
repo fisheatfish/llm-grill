@@ -1,4 +1,4 @@
-# llm-bench
+# llm-grill
 
 CLI for benchmarking LLM inference servers: vLLM, SGLang, llama.cpp, LiteLLM.
 
@@ -6,7 +6,7 @@ Measures **TTFT**, **TPOT**, **end-to-end latency**, **throughput**, **success r
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
-[![CI](https://github.com/fisheatfish/llm-bench/actions/workflows/ci.yml/badge.svg)](https://github.com/fisheatfish/llm-bench/actions/workflows/ci.yml)
+[![CI](https://github.com/fisheatfish/llm-grill/actions/workflows/ci.yml/badge.svg)](https://github.com/fisheatfish/llm-grill/actions/workflows/ci.yml)
 
 ---
 
@@ -15,13 +15,13 @@ Measures **TTFT**, **TPOT**, **end-to-end latency**, **throughput**, **success r
 Requires **Python 3.11+** and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-uv tool install llm-bench
+uv tool install llm-grill
 ```
 
 Verify:
 
 ```bash
-llm-bench --version
+llm-grill --version
 ```
 
 ---
@@ -31,13 +31,13 @@ llm-bench --version
 **1. Check connectivity**
 
 ```bash
-llm-bench ping scenarios/scaleway-devstral.yaml
+llm-grill ping scenarios/scaleway-devstral.yaml
 ```
 
 **2. Run a benchmark**
 
 ```bash
-llm-bench run scenarios/scaleway-devstral.yaml --output results.jsonl
+llm-grill run scenarios/scaleway-devstral.yaml --output results.jsonl
 ```
 
 After the run, tables are printed automatically:
@@ -50,16 +50,16 @@ After the run, tables are printed automatically:
 
 ```bash
 # Terminal table (summary + conversation metrics)
-llm-bench report results.jsonl
+llm-grill report results.jsonl
 
 # JSON (both sections, pipeable)
-llm-bench report results.jsonl --format json
+llm-grill report results.jsonl --format json
 
 # CSV (raw requests, pandas-ready)
-llm-bench report results.jsonl --format csv --output summary.csv
+llm-grill report results.jsonl --format csv --output summary.csv
 
 # Hide conversation metrics table
-llm-bench report results.jsonl --no-conversations
+llm-grill report results.jsonl --no-conversations
 ```
 
 ---
@@ -68,10 +68,10 @@ llm-bench report results.jsonl --no-conversations
 
 | Command | Description |
 |---|---|
-| `llm-bench run <scenario>` | Run a benchmark, stream results to JSONL |
-| `llm-bench ping <scenario>` | Test server connectivity |
-| `llm-bench show-scenario <scenario>` | Validate and display a scenario |
-| `llm-bench report <results.jsonl>` | Generate a report from a results file |
+| `llm-grill run <scenario>` | Run a benchmark, stream results to JSONL |
+| `llm-grill ping <scenario>` | Test server connectivity |
+| `llm-grill show-scenario <scenario>` | Validate and display a scenario |
+| `llm-grill report <results.jsonl>` | Generate a report from a results file |
 
 ### `run` options
 
@@ -253,7 +253,7 @@ backends:
 
 ```bash
 export LITELLM_API_KEY="sk-..."
-llm-bench run scenarios/my-scenario.yaml
+llm-grill run scenarios/my-scenario.yaml
 ```
 
 Never commit literal API keys in scenario files.
@@ -294,10 +294,10 @@ Aliases must match `model_name` values in LiteLLM's `config.yaml`.
 
 | Problem | Fix |
 |---|---|
-| `ModuleNotFoundError: llm_bench` | Run `make install` |
-| `ValidationError` on scenario load | Run `llm-bench show-scenario file.yaml` for details |
+| `ModuleNotFoundError: llm_grill` | Run `make install` |
+| `ValidationError` on scenario load | Run `llm-grill show-scenario file.yaml` for details |
 | TTFT always < 1 ms | Server not streaming — check `stream: true` support |
-| All requests `connection refused` | Run `llm-bench ping file.yaml` — check URL/port |
+| All requests `connection refused` | Run `llm-grill ping file.yaml` — check URL/port |
 | `401 Unauthorized` | Set `api_key: ${MY_VAR}` and export the variable |
 | `ping` times out on LiteLLM | LiteLLM `/health` does live inference — check gateway URL |
 

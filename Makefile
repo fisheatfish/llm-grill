@@ -17,7 +17,7 @@ test: install
 
 .PHONY: test-cov ## 🧪 Run tests with coverage report
 test-cov: install
-	uv run pytest --disable-warnings --cov=llm_bench --cov-fail-under 90 --cov-report=term-missing
+	uv run pytest --disable-warnings --cov=llm_grill --cov-fail-under 90 --cov-report=term-missing
 
 .PHONY: lint ## 🕵 Run lint and format on all packages
 lint:

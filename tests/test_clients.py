@@ -11,8 +11,8 @@ import pytest
 import respx
 from httpx import Response
 
-from llm_bench.clients import get_client
-from llm_bench.config import Backend, BackendConfig, Message, ModelConfig
+from llm_grill.clients import get_client
+from llm_grill.config import Backend, BackendConfig, Message, ModelConfig
 
 
 def _sse_body(tokens: list[str], model: str = "m", prompt_tokens: int = 10) -> bytes:
@@ -70,7 +70,7 @@ class TestGetClient:
         Then: Returns a VllmClient instance
         """
         # Given
-        from llm_bench.clients.vllm import VllmClient
+        from llm_grill.clients.vllm import VllmClient
 
         # When
         client = get_client(vllm_server)
@@ -87,7 +87,7 @@ class TestGetClient:
         Then: Returns a SglangClient instance
         """
         # Given
-        from llm_bench.clients.sglang import SglangClient
+        from llm_grill.clients.sglang import SglangClient
 
         server = BackendConfig(name="s", url="http://localhost:30000", type=Backend.sglang)
 
@@ -103,7 +103,7 @@ class TestGetClient:
         Then: Returns a LlamaCppClient instance
         """
         # Given
-        from llm_bench.clients.llamacpp import LlamaCppClient
+        from llm_grill.clients.llamacpp import LlamaCppClient
 
         server = BackendConfig(name="s", url="http://localhost:8080", type=Backend.llamacpp)
 

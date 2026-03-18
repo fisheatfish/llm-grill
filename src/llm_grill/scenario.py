@@ -6,7 +6,7 @@ from pathlib import Path
 
 import yaml
 
-from llm_bench.config import ScenarioConfig
+from llm_grill.config import ScenarioConfig
 
 
 def load_scenario(path: Path) -> ScenarioConfig:
