@@ -121,37 +121,58 @@ conversations:
 
           Focus on: algorithmic complexity, memory usage, and Python idioms.
 
+backends:
+  - name: gpu-llama
+    url: http://LLAMA_IP:8080
+    type: llamacpp
+    ssh_host: LLAMA_IP
+  - name: gpu-vllm
+    url: http://VLLM_IP:8000
+    type: vllm
+    ssh_host: VLLM_IP
+  - name: gpu-sglang
+    url: http://SGLANG_IP:8000
+    type: sglang
+    ssh_host: SGLANG_IP
+
 targets:
   # --- Baseline: latence par backend ---
   - backend: gateway
     model: devstral-small-llama
     conversation: short-code-question
+    backend: gpu-llama
 
   - backend: gateway
     model: devstral-small-vllm
     conversation: short-code-question
+    backend: gpu-vllm
 
   - backend: gateway
     model: devstral-small-sglang
     conversation: short-code-question
+    backend: gpu-sglang
 
   # --- KV cache: multi-turn (vLLM vs SGLang) ---
   - backend: gateway
     model: devstral-small-vllm
     conversation: multi-turn-debug
+    backend: gpu-vllm
 
   - backend: gateway
     model: devstral-small-sglang
     conversation: multi-turn-debug
+    backend: gpu-sglang
 
   # --- Prefill stress: long context (vLLM vs SGLang) ---
   - backend: gateway
     model: devstral-small-vllm
     conversation: long-context
+    backend: gpu-vllm
 
   - backend: gateway
     model: devstral-small-sglang
     conversation: long-context
+    backend: gpu-sglang
 
 load:
   concurrent_users: 10

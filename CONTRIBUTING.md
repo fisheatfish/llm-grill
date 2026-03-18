@@ -1,51 +1,68 @@
 # Contributing to llm-bench
 
-Thank you for your interest in contributing.
-
----
-
-## Getting started
-
-1. Fork the repository and clone your fork.
-2. Install dependencies:
+## Setup
 
 ```bash
-uv sync --all-extras
-```
-
-3. Run the test suite to verify your setup:
-
-```bash
+git clone https://github.com/fisheatfish/llm-bench.git
+cd llm-bench
+make install
 make test
 ```
 
----
+## Make targets
 
-## Development workflow
+| Target | Description |
+|---|---|
+| `make install` | Install all dependencies including dev extras |
+| `make test` | Run the full test suite |
+| `make test-cov` | Run tests with coverage (>90% required) |
+| `make lint` | Auto-fix lint + format |
+| `make check` | Lint check without fixing (CI-style) |
+| `make build` | Build distributable package |
 
-- **Branch**: create a feature branch from `main` (`git checkout -b feat/my-feature`).
-- **Code style**: `make fmt` (ruff format) before committing. `make lint` must pass.
-- **Tests**: add tests for any new behaviour. Coverage target is >80% on `src/llm_bench/`.
-- **Commits**: use [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`).
-- **Pull request**: open a PR against `main` with a description of what changed and why.
+## Workflow
 
----
+1. Branch from `main`: `git checkout -b feat/my-feature`
+2. Write code + tests
+3. `make lint` then `make test`
+4. Open a PR against `main`
+
+## Code conventions
+
+- `from __future__ import annotations` in all modules
+- Async everywhere in clients and runner (`anyio`)
+- No direct `print` — use `rich.console.Console`
+- Input validation via Pydantic, no defensive validation in core
+- Short classes (< 80 lines), single responsibility
+- Grouped imports: stdlib, third-party, local
+
+## Tests
+
+```
+tests/
+├── conftest.py       # shared fixtures
+├── test_config.py    # Pydantic validation, YAML loading
+├── test_metrics.py   # TTFT/TPOT/aggregation
+├── test_clients.py   # clients with respx (SSE mock)
+├── test_report.py    # CSV export, Rich tables
+└── test_runner.py    # orchestration, concurrency
+```
+
+- Use **Given / When / Then** pattern in docstrings
+- Use `pytest-mock` (`mocker` fixture), not `unittest.mock`
+- Use `respx` for HTTP mocking
+- Target coverage: >80% on `src/llm_bench/`
 
 ## Adding a new backend
 
-See the **Adding a new backend** section in [DEVELOPER.md](DEVELOPER.md).
+1. Create `src/llm_bench/clients/mybackend.py` inheriting `BaseClient`
+2. Implement `backend_metrics()` (optionally override `health()`)
+3. Add the enum value in `config.py` -> `Backend`
+4. Register it in `clients/__init__.py` -> `_REGISTRY`
+5. Add tests in `tests/test_clients.py`
 
----
+`BaseClient.complete()` handles SSE streaming generically — only override if the backend deviates from the OpenAI SSE format.
 
-## Reporting bugs
+## Commits
 
-Open an issue with:
-- `llm-bench --version` output
-- The command you ran and the scenario file (redact credentials)
-- The full error message / traceback
-
----
-
-## License
-
-By contributing, you agree that your contributions will be licensed under the Apache 2.0 License.
+Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `docs:`, `test:`, `refactor:`.

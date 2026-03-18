@@ -1,29 +1,29 @@
 # CLAUDE.md — llm-bench
 
-Source de vérité pour le build et le développement. Optimisé pour Claude Code.
+Source of truth for build and development. Optimized for Claude Code.
 
 ---
 
-## Projet
+## Project
 
-CLI Python de benchmark pour serveurs d'inférence LLM.
-Mesure TTFT, TPOT, latence E2E, throughput, success rate sur des scénarios multi-conversations multi-serveurs.
+Python CLI benchmark for LLM inference servers.
+Measures TTFT, TPOT, E2E latency, throughput, success rate, KV cache effectiveness (turn-to-turn ratio, hit rate, usage), and GPU metrics (utilization, memory, power) via SSH across multi-conversation multi-server scenarios.
 
-**Décisions d'architecture** : `docs/adr/001-architecture-cli-llm-bench.md`
-**Plan d'implémentation** : `docs/plan/implementation-plan.md` (non versionné)
+**Architecture decisions**: `docs/adr/001-architecture-cli-llm-bench.md`
+**Implementation plan**: `docs/plan/implementation-plan.md` (not versioned)
 
 ---
 
 ## Stack
 
-| Rôle | Lib | Version min |
+| Role | Lib | Min version |
 |---|---|---|
 | CLI | typer | 0.12 |
-| Affichage | rich | 13 |
-| Validation config | pydantic | 2 |
-| HTTP async + SSE | httpx | 0.27 |
-| Concurrence | anyio | 4 |
-| Scénarios | pyyaml | 6 |
+| Display | rich | 13 |
+| Config validation | pydantic | 2 |
+| Async HTTP + SSE | httpx | 0.27 |
+| Concurrency | anyio | 4 |
+| Scenarios | pyyaml | 6 |
 | Tests | pytest + pytest-asyncio + respx | 8 / 0.23 / 0.21 |
 | Packaging | uv + hatchling | — |
 
@@ -34,88 +34,101 @@ Mesure TTFT, TPOT, latence E2E, throughput, success rate sur des scénarios mult
 ```
 src/llm_bench/
 ├── __init__.py       # __version__
-├── cli.py            # app Typer — commandes : run, ping, show-scenario, report
-├── config.py         # Pydantic : ServerConfig, ModelConfig, ScenarioConfig, ConversationTemplate
-├── scenario.py       # Chargement et validation des fichiers YAML
+├── cli.py            # Typer app — commands: run, ping, show-scenario, report
+├── config.py         # Pydantic: BackendConfig, BenchmarkTarget, ModelConfig, ScenarioConfig, ConversationTemplate
+├── scenario.py       # YAML scenario loading and validation
 ├── clients/
-│   ├── base.py       # Classe abstraite BaseClient (méthodes : chat_stream, health, metrics_raw)
-│   ├── vllm.py       # Client vLLM (endpoint /metrics Prometheus)
-│   ├── sglang.py     # Client SGLang (endpoint /metrics Prometheus)
-│   ├── llamacpp.py   # Client llama.cpp / llama-server
-│   └── litellm.py    # Client LiteLLM (gateway)
-├── metrics.py        # dataclass RequestMetrics + fonctions d'agrégation
-├── runner.py         # Orchestration : concurrence anyio, gestion des tours de conversation
-└── report.py         # Écriture JSONL incrémentale + export CSV + tableau Rich
+│   ├── __init__.py   # Client factory — get_client() returns the right subclass per backend
+│   ├── base.py       # Abstract class BaseClient (methods: complete, health, backend_metrics)
+│   ├── vllm.py       # vLLM client (Prometheus /metrics endpoint)
+│   ├── sglang.py     # SGLang client (Prometheus /metrics endpoint)
+│   ├── llamacpp.py   # llama.cpp / llama-server client
+│   ├── litellm.py    # LiteLLM client (gateway)
+│   └── prometheus.py # Shared Prometheus scraping helper
+├── metrics.py        # dataclass RequestMetrics + AggregatedMetrics + aggregation (p50/p95/p99)
+├── runner.py         # Orchestration: anyio concurrency, conversation turn management
+├── gpu_monitor.py    # GPU metrics collection via SSH
+└── report.py         # Incremental JSONL writing + CSV export + Rich table
 
-scenarios/            # Fichiers YAML de scénarios
-tests/                # pytest — un fichier par module src
-docs/adr/             # ADRs versionnés
-docs/plan/            # Plans non versionnés (.gitignore)
+scenarios/            # YAML scenario files
+tests/                # pytest — one file per src module
+docs/adr/             # Versioned ADRs
+docs/plan/            # Unversioned plans (.gitignore)
 ```
+
+> **Note — `openai` backend**: The `openai` backend type reuses the vLLM client, since both
+> speak the same OpenAI-compatible API. No dedicated `clients/openai.py` is needed.
 
 ---
 
-## Commandes Make
+## Make commands
 
 ```bash
 make install      # uv sync --all-extras
 make test         # pytest
-make lint         # ruff check src tests
-make fmt          # ruff format src tests
+make test-cov     # pytest with coverage
+make lint         # ruff check --fix + ruff format (whole repo)
+make check        # ruff check without fixing (CI-style)
 make build        # uv build
-make clean        # supprime dist/ __pycache__ .pytest_cache
 ```
 
 ---
 
-## Commandes CLI
+## CLI commands
 
 ```bash
-llm-bench run scenarios/foo.yaml [--output results.jsonl] [--format jsonl|csv] [--verbose]
-llm-bench ping --scenario scenarios/foo.yaml
+llm-bench run scenarios/foo.yaml [--output results.jsonl] [--format jsonl|csv] [--verbose] [--quiet]
+llm-bench ping scenarios/foo.yaml
 llm-bench show-scenario scenarios/foo.yaml
-llm-bench report results.jsonl [--format csv|table]
+llm-bench report results.jsonl [--format table|json|csv] [--output out.csv] [--no-conversations]
 ```
 
 ---
 
-## Format scénario (YAML)
+## Scenario format (YAML)
 
 ```yaml
-name: string                        # identifiant du scénario
-description: string                 # optionnel
-servers:
+name: string                        # scenario identifier
+description: string                 # optional
+backends:
   - name: string
-    url: http://host:port           # base URL (sans /v1)
-    api_key: string                 # "none" | clé littérale | ${ENV_VAR}
-    backend: vllm|sglang|llamacpp|litellm|openai
-    timeout: float                  # secondes, défaut 120
+    url: http://host:port           # base URL (without /v1)
+    type: vllm|sglang|llamacpp|litellm|openai
+    api_key: string                 # "none" | literal key | ${ENV_VAR}
+    timeout: float                  # seconds, default 120 — applies per HTTP request
+    gpu_monitoring: bool            # default false — enable GPU metrics via SSH
+    ssh_host: string                # optional — for GPU metrics collection
+    ssh_user: string                # default "root"
 models:
-  - name: string                    # model_id exact tel qu'attendu par le serveur
-    max_tokens: int                 # défaut 512
-    temperature: float              # défaut 0.0
+  - name: string                    # exact model_id as expected by the server
+    max_tokens: int                 # default 512
+    temperature: float              # default 0.0
+    top_p: float                    # default 1.0
 conversations:
   - name: string
     description: string
     turns:
       - role: system|user|assistant
         content: string
-targets:                            # combinaisons à benchmarker
-  - server: string                  # doit matcher servers[].name
-    model: string                   # doit matcher models[].name
-    conversation: string            # doit matcher conversations[].name
+targets:                            # combinations to benchmark
+  - backend: string                 # must match backends[].name
+    model: string                   # must match models[].name
+    conversation: string            # must match conversations[].name
 load:
-  concurrent_users: int             # défaut 1
-  iterations: int                   # défaut 1 (par user)
-  ramp_up_seconds: float            # défaut 0.0
-  think_time_seconds: float         # pause entre les tours, défaut 0.0
+  concurrent_users: int             # default 1
+  iterations: int                   # default 1 (per user)
+  ramp_up_seconds: float            # default 0.0 — linear spread: user N starts at
+                                    #   (ramp_up_seconds / concurrent_users) * N seconds
+  think_time_seconds: float         # pause between turns, default 0.0
+  ramp_levels: [int, ...]          # optional — list of concurrency levels to test sequentially
+  ramp_pause_seconds: float         # pause between ramp levels, default 10.0
 ```
 
 ---
 
-## Format de sortie JSONL
+## JSONL output format
 
-Une ligne JSON par requête complète :
+One JSON line per completed request:
 
 ```json
 {
@@ -135,80 +148,58 @@ Une ligne JSON par requête complète :
   "tokens_per_second": 0.0,
   "success": true,
   "error": null,
-  "backend_metrics": {}            // métriques spécifiques au backend si disponibles
+  "concurrent_users_level": 0,
+  "run_id": "string",
+  "kv_cache_usage": null,
+  "cache_hit_rate": null,
+  "requests_running": null,
+  "requests_waiting": null,
+  "gpu_mem_used_mib": null,
+  "gpu_util_pct": null,
+  "gpu_temp_c_max": null,
+  "gpu_power_w_total": null
 }
 ```
 
-Lecture pandas : `pd.read_json("results.jsonl", lines=True)`
-Lecture polars : `pl.read_ndjson("results.jsonl")`
+Reading with pandas: `pd.read_json("results.jsonl", lines=True)`
+Reading with polars: `pl.read_ndjson("results.jsonl")`
+
+### Aggregated metrics (via `report` command)
+
+The report aggregates per (server, model) with: mean, median, **p95** for TTFT and E2E,
+plus total tokens/s, requests/s, and success rate. Conversation-level metrics include
+turn-to-turn TTFT ratio (KV cache effectiveness) and context growth factor.
 
 ---
 
-## Clients backend
+## Backend clients
 
-Chaque client hérite de `BaseClient` (ABC) et implémente :
+Each client inherits from `BaseClient` (ABC) and implements:
 
-- `complete(messages, model_config) -> StreamResult` — stream SSE, mesure TTFT/TPOT/E2E
-- `health() -> bool` — vérification connectivité (timeout court : 10s)
-- `backend_metrics() -> dict` — métriques propriétaires (Prometheus scrape pour vLLM/SGLang)
+- `complete(messages, model_config) -> StreamResult` — SSE stream, measures TTFT/TPOT/E2E
+- `health() -> bool` — connectivity check (short timeout: 10s)
+- `backend_metrics() -> dict` — vendor-specific metrics (Prometheus scrape for vLLM/SGLang)
 
-La mesure TTFT se fait côté client :
-- `t0` = juste avant l'envoi de la requête HTTP
-- `t_first` = réception du premier chunk SSE non-vide
-- `t_last` = réception du token `[DONE]`
+Client-side TTFT measurement:
+- `t0` = just before sending the HTTP request
+- `t_first` = reception of the first non-empty SSE chunk
+- `t_last` = end of stream (after `[DONE]` or stream close)
 - TTFT = `t_first - t0`
 - E2E = `t_last - t0`
 - TPOT = `(E2E - TTFT) / max(completion_tokens - 1, 1)`
 
----
-
-## GPU Monitoring (nvidia-smi via SSH)
-
-Le `GpuMonitor` collecte les métriques GPU (mémoire, utilisation, température, puissance) en exécutant `nvidia-smi` via SSH sur les serveurs cibles.
-
-### Activation dans le scénario YAML
-
-```yaml
-servers:
-  - name: gpu-llama
-    url: http://172.16.0.3:8080
-    backend: llamacpp
-    gpu_monitoring: true          # active le polling nvidia-smi
-    ssh_host: 172.16.0.3         # optionnel, extrait de l'URL si absent
-    ssh_user: root               # défaut : root
-```
-
-### Prérequis SSH
-
-La machine qui lance `llm-bench` (gateway) doit pouvoir faire `ssh root@<serveur-gpu>` **sans mot de passe**.
-
-1. Vérifier qu'une clé existe sur la gateway : `ls ~/.ssh/id_ed25519.pub`
-2. Chercher une clé d'instance Scaleway : `ls ~/.ssh/instance_keys/`
-3. Copier la clé autorisée sur le serveur GPU :
-   ```bash
-   # Depuis une machine ayant déjà accès au serveur GPU :
-   cat /root/.ssh/authorized_keys   # sur la gateway
-   # Ajouter la clé pub dans /root/.ssh/authorized_keys du serveur GPU
-   ```
-4. Tester : `ssh -o ConnectTimeout=5 root@172.16.0.3 "nvidia-smi --query-gpu=index --format=csv,noheader"`
-
-> **Note** : `ssh-copy-id` ne fonctionne pas si le serveur GPU refuse déjà l'auth par mot de passe. Il faut copier la clé via un autre canal (console Scaleway, autre machine avec accès).
-
-### Debug
-
-- Lancer avec `--verbose` pour voir les logs du `GpuMonitor`
-- Si les champs `gpu_*` sont tous `null` dans le JSONL → le SSH ne fonctionne pas ou `gpu_monitoring` n'est pas activé
+The server-level `timeout` (default 120s) applies to each HTTP request (i.e. per conversation turn), not to the whole conversation.
 
 ---
 
-## Conventions de code
+## Code conventions
 
-- Classes courtes (< 80 lignes). Une responsabilité par classe.
-- Async partout dans les clients et le runner (`anyio.create_task_group` pour la concurrence).
-- Pas de print direct — `rich.console.Console` uniquement.
-- Validation à l'entrée via Pydantic. Pas de validation défensive dans le cœur.
-- `from __future__ import annotations` dans tous les modules.
-- Imports groupés : stdlib → third-party → local.
+- Short classes (< 80 lines). Single responsibility per class.
+- Async everywhere in clients and runner (`anyio.create_task_group` for concurrency).
+- No direct print — `rich.console.Console` only.
+- Input validation via Pydantic. No defensive validation in the core.
+- `from __future__ import annotations` in all modules.
+- Grouped imports: stdlib → third-party → local.
 
 ---
 
@@ -216,20 +207,23 @@ La machine qui lance `llm-bench` (gateway) doit pouvoir faire `ssh root@<serveur
 
 ```
 tests/
-├── conftest.py          # fixtures : ScenarioConfig mock, respx mock server
-├── test_config.py       # validation Pydantic, chargement YAML
-├── test_metrics.py      # calculs TTFT/TPOT/agrégation
-├── test_clients.py      # clients avec respx (SSE mock)
-└── test_runner.py       # orchestration, concurrence
+├── conftest.py          # fixtures: mock ScenarioConfig, respx mock server
+├── test_cli.py          # Typer commands via CliRunner
+├── test_config.py       # Pydantic validation, YAML loading
+├── test_metrics.py      # TTFT/TPOT/aggregation calculations
+├── test_clients.py      # clients with respx (SSE mock)
+├── test_gpu_monitor.py  # GPU metrics collection
+├── test_report.py       # CSV export, Rich tables
+└── test_runner.py       # orchestration, concurrency
 ```
 
-Couverture cible : > 80 % sur `src/llm_bench/`.
+Target coverage: > 80% on `src/llm_bench/`.
 
 ---
 
-## Fichiers à ne pas versionner
+## Files not to version
 
-Ajouter au `.gitignore` :
+Add to `.gitignore`:
 - `docs/plan/`
 - `results/`
 - `*.jsonl`

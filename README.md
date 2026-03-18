@@ -6,48 +6,19 @@ Measures **TTFT**, **TPOT**, **end-to-end latency**, **throughput**, **success r
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
-[![CI](https://github.com/your-org/llm-bench/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/llm-bench/actions/workflows/ci.yml)
+[![CI](https://github.com/fisheatfish/llm-bench/actions/workflows/ci.yml/badge.svg)](https://github.com/fisheatfish/llm-bench/actions/workflows/ci.yml)
 
 ---
 
 ## Install
 
-Requires **Python 3.11+**.
-
-### From PyPI (recommended)
+Requires **Python 3.11+** and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-pip install llm-bench
-```
-
-With [uv](https://docs.astral.sh/uv/) (faster):
-
-```bash
-# as a global tool
 uv tool install llm-bench
-
-# or inside a project
-uv add llm-bench
 ```
 
-### From source
-
-```bash
-git clone https://github.com/your-org/llm-bench.git
-cd llm-bench
-pip install -e .
-```
-
-With uv:
-
-```bash
-git clone https://github.com/your-org/llm-bench.git
-cd llm-bench
-uv sync
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-```
-
-### Verify installation
+Verify:
 
 ```bash
 llm-bench --version
@@ -118,33 +89,12 @@ llm-bench report results.jsonl --no-conversations
 | `--output / -o` | — | Output path for CSV format |
 | `--no-conversations` | off | Hide the conversation metrics table |
 
----
+### Global options
 
-## Metrics
-
-### Latency & throughput
-
-| Metric | Description |
+| Option | Description |
 |---|---|
-| **TTFT** | Time to First Token — from request sent to first token received (client-side, includes network) |
-| **TPOT** | Time Per Output Token — `(E2E - TTFT) / (completion_tokens - 1)` |
-| **E2E latency** | Total time from request to last token |
-| **tokens/s per request** | `completion_tokens / E2E latency` |
-| **total tokens/s** | Total completion tokens across all requests / total benchmark duration |
-| **success rate** | % of requests completed without error |
-
-### Conversation quality (multi-turn)
-
-These metrics are computed per `(server, model, conversation)` group and displayed in a separate table.
-
-| Metric | Description | Interpretation |
-|---|---|---|
-| **Turn-to-Turn Ratio** | `mean(TTFT turn > 0) / mean(TTFT turn 0)` | < 1 → KV cache is active and reducing prefill time |
-| **Context Growth Factor** | `mean(E2E last turn) / mean(E2E first turn)` | > 1 → latency increases as context grows |
-| **KV Cache Hit Rate** | Fraction of prompt tokens served from KV cache | SGLang only, from `/metrics` Prometheus |
-| **KV Cache Usage** | GPU KV cache capacity used | vLLM only, from `/metrics` (Prometheus) |
-
-A Turn-to-Turn Ratio close to 0 on a multi-turn scenario confirms the server is effectively reusing cached prefill tokens. Comparing this value between vLLM and SGLang on the same conversation directly measures KV cache efficiency.
+| `--verbose / -v` | Enable debug logging |
+| `--version / -V` | Print version and exit |
 
 ---
 
@@ -154,11 +104,11 @@ A Turn-to-Turn Ratio close to 0 on a multi-turn scenario confirms the server is 
 name: my-scenario
 description: Optional description
 
-servers:
+backends:
   - name: gpu-vllm
     url: http://gpu-vllm:8000
     api_key: none                    # "none", a literal key, or ${ENV_VAR}
-    backend: vllm                    # vllm | sglang | llamacpp | litellm | openai
+    type: vllm                       # vllm | sglang | llamacpp | litellm | openai
     timeout: 120.0
 
 models:
@@ -177,7 +127,7 @@ conversations:
         content: "The DB connection pool is exhausted. How do I configure it in SQLAlchemy?"
 
 targets:
-  - server: gpu-vllm
+  - backend: gpu-vllm
     model: devstral-small-2-24b
     conversation: multi-turn-debug
 
@@ -188,11 +138,11 @@ load:
   think_time_seconds: 0.0
 ```
 
-Each entry in `turns` with `role: user` triggers a real inference request. The conversation history (including assistant responses) is carried forward across turns, so the server sees a growing context — which is what drives KV cache and context growth metrics.
+Each `role: user` turn triggers an inference request. Conversation history (including assistant responses) is carried forward, so the server sees a growing context.
 
 ### Load ramp
 
-Add `ramp_levels` to sweep multiple concurrency levels in a single run. When set, `concurrent_users` is ignored and each level is executed sequentially with a configurable pause between them.
+Add `ramp_levels` to sweep concurrency levels in a single run. When set, `concurrent_users` is ignored.
 
 ```yaml
 load:
@@ -202,26 +152,50 @@ load:
   think_time_seconds: 0.0
 ```
 
-Results are tagged with `concurrent_users_level` in the JSONL output. After the run, llm-bench automatically detects the ramp mode and displays the **Load Ramp Results** table:
+Results are tagged with `concurrent_users_level` in the JSONL output and displayed in a **Load Ramp Results** table sorted by `(server, model, users)`.
+
+---
+
+## Metrics
+
+### Latency & throughput
+
+| Metric | Description |
+|---|---|
+| **TTFT** | Time to First Token — from request sent to first token received (client-side, includes network) |
+| **TPOT** | Time Per Output Token — `(E2E - TTFT) / (completion_tokens - 1)` |
+| **E2E latency** | Total time from request to last token |
+| **tokens/s** | `completion_tokens / E2E latency` (per request) or total across all requests / benchmark duration |
+| **success rate** | % of requests completed without error |
 
 ```
-                            Load Ramp Results
-┌──────────┬────────────────┬───────┬──────────┬───────────┬───────────┬──────────┬──────────┬─────────┬─────────────┐
-│ Server   │ Model          │ Users │ Requests │ Success % │ TTFT mean │ TTFT p95 │ E2E mean │ E2E p95 │ Tok/s total │
-├──────────┼────────────────┼───────┼──────────┼───────────┼───────────┼──────────┼──────────┼─────────┼─────────────┤
-│ gpu-vllm │ devstral-small │     1 │        3 │   100.0%  │    120 ms │   145 ms │  2100 ms │ 2300 ms │        72.4 │
-│ gpu-vllm │ devstral-small │     5 │       15 │   100.0%  │    180 ms │   220 ms │  3200 ms │ 3800 ms │       210.1 │
-│ gpu-vllm │ devstral-small │    10 │       30 │    96.7%  │    250 ms │   420 ms │  5100 ms │ 7200 ms │       318.4 │
-└──────────┴────────────────┴───────┴──────────┴───────────┴───────────┴──────────┴──────────┴─────────┴─────────────┘
+t0       → request sent
+t_first  → first non-empty content chunk received
+t_last   → stream ends ([DONE] or connection close)
+
+TTFT   = t_first - t0
+E2E    = t_last  - t0
+TPOT   = (E2E - TTFT) / max(completion_tokens - 1, 1)
 ```
 
-The table is sorted by `(server, model, users)`, making it easy to spot the concurrency level at which success rate or latency degrades — i.e., the breaking point.
+Measurement includes network round-trip. For cross-server comparisons, run from the same network location.
+
+### Conversation quality (multi-turn)
+
+Computed per `(server, model, conversation)` group:
+
+| Metric | Description | Interpretation |
+|---|---|---|
+| **Turn-to-Turn Ratio** | `mean(TTFT turn > 0) / mean(TTFT turn 0)` | < 1 → KV cache reduces prefill time |
+| **Context Growth Factor** | `mean(E2E last turn) / mean(E2E first turn)` | > 1 → latency increases with context |
+| **KV Cache Hit Rate** | Prompt tokens served from cache | SGLang only (Prometheus) |
+| **KV Cache Usage** | GPU KV cache capacity used | vLLM only (Prometheus) |
 
 ---
 
 ## Output format (JSONL)
 
-One JSON object per request, written incrementally to disk during execution:
+One JSON object per request, written incrementally:
 
 ```json
 {
@@ -241,54 +215,40 @@ One JSON object per request, written incrementally to disk during execution:
   "tokens_per_second": 52.0,
   "success": true,
   "error": null,
-  "backend_metrics": {
-    "vllm:gpu_cache_usage_perc": 0.34,
-    "vllm:num_requests_running": 8.0
-  },
+  "kv_cache_usage": 0.34,
+  "requests_running": 8.0,
   "concurrent_users_level": 10
 }
 ```
 
-The file is valid even if the benchmark is interrupted — each line is a complete, independent record.
+The file is valid even if the benchmark is interrupted — each line is a complete record.
 
 **Read with pandas:**
 
 ```python
-import pandas as pd
-
 df = pd.read_json("results.jsonl", lines=True)
-
-# Latency by server
-print(df.groupby("target_server")[["ttft_s", "e2e_latency_s", "tokens_per_second"]].mean())
-
-# Turn-to-turn latency ratio (manual)
-print(df.groupby(["target_server", "conversation", "turn"])["ttft_s"].mean())
-
-# Load ramp — latency and success rate per concurrency level
-print(df.groupby(["target_server", "concurrent_users_level"])[["ttft_s", "e2e_latency_s", "success"]].agg({"ttft_s": "mean", "e2e_latency_s": "mean", "success": "mean"}))
+df.groupby("target_server")[["ttft_s", "e2e_latency_s", "tokens_per_second"]].mean()
 ```
 
-**Read with Polars:**
+**Read with polars:**
 
 ```python
-import polars as pl
-
 df = pl.read_ndjson("results.jsonl")
-print(df.group_by("target_server").agg(pl.col("ttft_s").mean()))
+df.group_by("target_server").agg(pl.col("ttft_s").mean())
 ```
 
 ---
 
 ## API keys
 
-Set `api_key` to `${ENV_VAR}` to read the value from an environment variable at load time. The variable must be set when the command runs, or the scenario will fail to load with a clear error.
+Use `${ENV_VAR}` syntax to read from environment variables at load time:
 
 ```yaml
-servers:
+backends:
   - name: gateway
     url: http://my-litellm-proxy:4000
     api_key: ${LITELLM_API_KEY}
-    backend: litellm
+    type: litellm
 ```
 
 ```bash
@@ -302,36 +262,51 @@ Never commit literal API keys in scenario files.
 
 ## LiteLLM gateway routing
 
-When all backends are behind a LiteLLM proxy, define one server entry for the gateway and use **model aliases** (as configured in LiteLLM) to route to each backend:
+When backends are behind a LiteLLM proxy, define one backend entry for the gateway and use **model aliases** to route:
 
 ```yaml
-servers:
+backends:
   - name: gateway
     url: http://my-litellm-proxy:4000
     api_key: ${LITELLM_API_KEY}
-    backend: litellm
+    type: litellm
 
 models:
-  - name: devstral-small-llama    # LiteLLM alias → llama.cpp backend
+  - name: devstral-small-llama    # LiteLLM alias → llama.cpp
     max_tokens: 512
-    temperature: 0.0
-  - name: devstral-small-vllm     # LiteLLM alias → vLLM backend
+  - name: devstral-small-vllm     # LiteLLM alias → vLLM
     max_tokens: 512
-    temperature: 0.0
 
 targets:
-  - server: gateway
+  - backend: gateway
     model: devstral-small-llama
     conversation: short-code-question
-  - server: gateway
+  - backend: gateway
     model: devstral-small-vllm
     conversation: short-code-question
 ```
 
-The model name in each request determines which backend LiteLLM routes to. Aliases must match the `model_name` values in the LiteLLM `config.yaml`.
+Aliases must match `model_name` values in LiteLLM's `config.yaml`.
 
 ---
 
-## Scaleway example
+## Troubleshooting
 
-See `scenarios/scaleway-devstral.yaml` for a complete benchmark of Devstral-Small-2-24B across three backends (llama-server GGUF on L40S, vLLM BF16 on H100, SGLang BF16 on H100) via a LiteLLM gateway, including single-turn, multi-turn, and long-context scenarios.
+| Problem | Fix |
+|---|---|
+| `ModuleNotFoundError: llm_bench` | Run `make install` |
+| `ValidationError` on scenario load | Run `llm-bench show-scenario file.yaml` for details |
+| TTFT always < 1 ms | Server not streaming — check `stream: true` support |
+| All requests `connection refused` | Run `llm-bench ping file.yaml` — check URL/port |
+| `401 Unauthorized` | Set `api_key: ${MY_VAR}` and export the variable |
+| `ping` times out on LiteLLM | LiteLLM `/health` does live inference — check gateway URL |
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+Apache 2.0 — see [LICENSE](LICENSE).

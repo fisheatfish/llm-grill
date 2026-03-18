@@ -11,9 +11,7 @@ from llm_bench.config import ScenarioConfig
 
 def load_scenario(path: Path) -> ScenarioConfig:
     """Load and validate a YAML scenario file."""
+    if not path.exists():
+        raise FileNotFoundError(f"Scenario file not found: {path}")
     raw = yaml.safe_load(path.read_text())
     return ScenarioConfig.model_validate(raw)
-
-
-def load_scenarios(paths: list[Path]) -> list[ScenarioConfig]:
-    return [load_scenario(p) for p in paths]

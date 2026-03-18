@@ -1,16 +1,16 @@
 # Benchmark scenario — Devstral-Small-2-24B on Scaleway infrastructure
-# À exécuter DEPUIS le serveur gateway (DEV1-M) pour accès direct aux backends.
+# Run FROM the gateway server (DEV1-M) for direct backend access.
 #
 # Avantages vs scaleway-devstral.yaml :
 #   - KV cache hit rate disponible (SGLang /metrics Prometheus)
 #   - KV cache usage disponible (vLLM /metrics Prometheus)
 #   - Mesures TTFT/TPOT sans latence gateway
 #
-# ── AVANT DE LANCER ─────────────────────────────────────────────────────────
-# Remplacer les valeurs marquées  ← À MODIFIER  ci-dessous.
-# Pour connaître le model name exact de chaque serveur :
+# ── BEFORE RUNNING ────────────────────────────────────────────────────────
+# Replace the values marked  ← EDIT  below.
+# To find the exact model name for each server:
 #   curl http://<ip>:<port>/v1/models | jq '.data[].id'
-# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────
 
 name: insitu-scaleway-devstral
 description: >
@@ -19,21 +19,21 @@ description: >
 
 backends:
   - name: gpu-llama
-    url: http://172.16.0.9:8001        # ← À MODIFIER  ex. http://xx.xxx.xxx.xxx:8001
+    url: http://172.16.0.9:8001        # ← EDIT  e.g. http://xx.xxx.xxx.xxx:8001
     api_key: none
     type: llamacpp
     timeout: 120.0
     gpu_monitoring: true
 
   - name: gpu-vllm
-    url: http://172.16.0.3:8001        # ← À MODIFIER  ex. http://xx.xxx.xxx.xxx:8001
+    url: http://172.16.0.3:8001        # ← EDIT  e.g. http://xx.xxx.xxx.xxx:8001
     api_key: none
     type: vllm
     timeout: 120.0
     gpu_monitoring: true
 
   - name: gpu-sglang
-    url: http://172.16.0.8:8001        # ← À MODIFIER  ex. http://xx.xxx.xxx.xxx:8001
+    url: http://172.16.0.8:8001        # ← EDIT  e.g. http://xx.xxx.xxx.xxx:8001
     api_key: none
     type: sglang
     timeout: 120.0
@@ -156,7 +156,7 @@ targets:
     conversation: long-context
 
 load:
-  concurrent_users: 10   # ← ajuster selon capacité GPU (réduire si timeouts)
+  concurrent_users: 10   # ← adjust based on GPU capacity (reduce if timeouts)
   iterations: 3
   ramp_up_seconds: 5.0
   think_time_seconds: 0.0

@@ -1,4 +1,7 @@
-"""Tests for config.py — Pydantic validation and scenario loading."""
+"""
+Tests for config.py and scenario.py.
+Tests Pydantic validation, defaults, cross-references, and YAML loading.
+"""
 
 from __future__ import annotations
 
@@ -10,6 +13,7 @@ import yaml
 from llm_bench.config import (
     Backend,
     BackendConfig,
+    BenchmarkTarget,
     ConversationTemplate,
     LoadConfig,
     Message,
@@ -20,8 +24,20 @@ from llm_bench.scenario import load_scenario
 
 
 class TestBackendConfig:
-    def test_valid(self) -> None:
+    """Tests for BackendConfig validation and defaults."""
+
+    def test_should_create_valid_config_when_all_fields_provided(self):
+        """
+        Should accept valid fields and set correct defaults.
+
+        Given: Valid server parameters with explicit backend
+        When: Creating a BackendConfig
+        Then: All fields are set correctly with default timeout
+        """
+        # Given / When
         b = BackendConfig(name="b1", url="http://localhost:8000", type=Backend.vllm)
+
+        # Then
         assert b.name == "b1"
         assert b.type == Backend.vllm
         assert b.timeout == 120.0
@@ -44,53 +60,104 @@ class TestBackendConfig:
         )
         assert b.effective_ssh_host == "bastion.internal"
 
-    def test_invalid_url(self) -> None:
+    def test_should_reject_invalid_url(self):
+        """
+        Should raise ValidationError when URL is malformed.
+
+        Given: An invalid URL string
+        When: Creating a BackendConfig
+        Then: Pydantic raises a validation error
+        """
+        # When / Then
         with pytest.raises(Exception):
             BackendConfig(name="b1", url="not-a-url", type=Backend.vllm)
 
-    def test_default_type(self) -> None:
-        b = BackendConfig(name="b1", url="http://localhost:8000")
-        assert b.type == Backend.openai
+    def test_should_default_to_openai_backend(self):
+        """
+        Should use openai as default backend when none specified.
 
-    def test_with_all_fields(self) -> None:
-        b = BackendConfig(
-            name="b1",
-            url="http://10.0.0.1:8000",
-            type=Backend.sglang,
-            api_key="secret",
-            timeout=60.0,
-            gpu_monitoring=True,
-            ssh_user="admin",
-        )
-        assert b.ssh_user == "admin"
-        assert b.api_key == "secret"
-        assert b.timeout == 60.0
-        assert b.effective_ssh_host == "10.0.0.1"
+        Given: No backend specified
+        When: Creating a BackendConfig
+        Then: Backend defaults to openai
+        """
+        # When
+        server = BackendConfig(name="s1", url="http://localhost:8000")
+
+        # Then
+        assert server.type == Backend.openai
 
 
 class TestModelConfig:
-    def test_valid(self) -> None:
-        m = ModelConfig(name="llama", max_tokens=256, temperature=0.7)
-        assert m.max_tokens == 256
+    """Tests for ModelConfig validation and bounds."""
 
-    def test_temperature_bounds(self) -> None:
+    def test_should_accept_valid_parameters(self):
+        """
+        Should create model config with specified values.
+
+        Given: Valid model parameters
+        When: Creating a ModelConfig
+        Then: Values are set correctly
+        """
+        # When
+        model = ModelConfig(name="llama", max_tokens=256, temperature=0.7)
+
+        # Then
+        assert model.max_tokens == 256
+
+    def test_should_reject_temperature_above_2(self):
+        """
+        Should reject temperature > 2.0.
+
+        Given: Temperature set to 3.0
+        When: Creating a ModelConfig
+        Then: Validation error is raised
+        """
+        # When / Then
         with pytest.raises(Exception):
             ModelConfig(name="m", temperature=3.0)
 
-    def test_top_p_bounds(self) -> None:
+    def test_should_reject_top_p_above_1(self):
+        """
+        Should reject top_p > 1.0.
+
+        Given: top_p set to 1.5
+        When: Creating a ModelConfig
+        Then: Validation error is raised
+        """
+        # When / Then
         with pytest.raises(Exception):
             ModelConfig(name="m", top_p=1.5)
 
 
 class TestConversationTemplate:
-    def test_valid(self) -> None:
-        c = ConversationTemplate(
+    """Tests for ConversationTemplate validation."""
+
+    def test_should_accept_conversation_with_user_turn(self):
+        """
+        Should create a valid conversation when it has at least one user turn.
+
+        Given: A conversation with a single user turn
+        When: Creating a ConversationTemplate
+        Then: Template is created with correct turn count
+        """
+        # When
+        conv = ConversationTemplate(
             name="c1",
             turns=[Message(role="user", content="hello")],
         )
-        assert len(c.turns) == 1
 
-    def test_requires_user_turn(self) -> None:
+        # Then
+        assert len(conv.turns) == 1
+
+    def test_should_reject_conversation_without_user_turn(self):
+        """
+        Should reject a conversation with only system messages.
+
+        Given: A conversation with only a system turn
+        When: Creating a ConversationTemplate
+        Then: Validation error is raised
+        """
+        # When / Then
         with pytest.raises(Exception):
             ConversationTemplate(
                 name="c1",
@@ -98,32 +165,131 @@ class TestConversationTemplate:
             )
 
 
-class TestScenarioConfig:
-    def test_get_backend(self, scenario: ScenarioConfig) -> None:
-        b = scenario.get_backend("test-vllm")
-        assert b.name == "test-vllm"
+class TestScenarioConfigLookups:
+    """Tests for ScenarioConfig getter methods."""
 
-    def test_get_backend_missing(self, scenario: ScenarioConfig) -> None:
+    def test_should_find_server_by_name(self, scenario: ScenarioConfig):
+        """
+        Should return the matching server when name exists.
+
+        Given: A scenario with server "test-vllm"
+        When: Calling get_backend("test-vllm")
+        Then: Returns the correct server
+        """
+        # When
+        server = scenario.get_backend("test-vllm")
+
+        # Then
+        assert server.name == "test-vllm"
+
+    def test_should_raise_when_server_not_found(self, scenario: ScenarioConfig):
+        """
+        Should raise KeyError when server name does not exist.
+
+        Given: A scenario without server "nonexistent"
+        When: Calling get_backend("nonexistent")
+        Then: KeyError is raised
+        """
+        # When / Then
         with pytest.raises(KeyError):
             scenario.get_backend("nonexistent")
 
-    def test_get_model(self, scenario: ScenarioConfig) -> None:
-        m = scenario.get_model("test-model")
-        assert m.name == "test-model"
+    def test_should_find_model_by_name(self, scenario: ScenarioConfig):
+        """
+        Should return the matching model when name exists.
 
-    def test_get_conversation(self, scenario: ScenarioConfig) -> None:
-        c = scenario.get_conversation("simple")
-        assert c.name == "simple"
+        Given: A scenario with model "test-model"
+        When: Calling get_model("test-model")
+        Then: Returns the correct model
+        """
+        # When
+        model = scenario.get_model("test-model")
+
+        # Then
+        assert model.name == "test-model"
+
+    def test_should_find_conversation_by_name(self, scenario: ScenarioConfig):
+        """
+        Should return the matching conversation when name exists.
+
+        Given: A scenario with conversation "simple"
+        When: Calling get_conversation("simple")
+        Then: Returns the correct conversation
+        """
+        # When
+        conv = scenario.get_conversation("simple")
+
+        # Then
+        assert conv.name == "simple"
+
+
+class TestBackendConfigExtended:
+    """Tests for BackendConfig GPU and SSH fields."""
+
+    def test_should_create_with_defaults(self):
+        """
+        Should set ssh_host to None and ssh_user to "root" by default.
+
+        Given: Minimal backend config parameters
+        When: Creating a BackendConfig
+        Then: Defaults are applied correctly
+        """
+        # When
+        backend = BackendConfig(name="gpu-vllm", url="http://10.0.0.1:8000", type=Backend.vllm)
+
+        # Then
+        assert backend.name == "gpu-vllm"
+        assert backend.ssh_host is None
+        assert backend.ssh_user == "root"
+
+    def test_should_accept_all_optional_fields(self):
+        """
+        Should store all optional fields when provided.
+
+        Given: BackendConfig with all optional fields set
+        When: Creating the config
+        Then: All values are stored correctly
+        """
+        # When
+        backend = BackendConfig(
+            name="b1",
+            url="http://10.0.0.1:8000",
+            type=Backend.sglang,
+            ssh_host="10.0.0.1",
+            ssh_user="admin",
+        )
+
+        # Then
+        assert backend.ssh_user == "admin"
+        assert backend.ssh_host == "10.0.0.1"
 
 
 class TestBenchmarkTarget:
-    def test_valid(self) -> None:
-        from llm_bench.config import BenchmarkTarget
+    """Tests for BenchmarkTarget backend reference validation."""
 
-        t = BenchmarkTarget(backend="b1", model="m1", conversation="c1")
-        assert t.backend == "b1"
+    def test_should_store_backend(self):
+        """
+        Should store the backend reference when provided.
 
-    def test_invalid_backend_ref(self) -> None:
+        Given: A target with backend="gpu-vllm"
+        When: Creating a BenchmarkTarget
+        Then: backend is "gpu-vllm"
+        """
+        # When
+        target = BenchmarkTarget(backend="gpu-vllm", model="m1", conversation="c1")
+
+        # Then
+        assert target.backend == "gpu-vllm"
+
+    def test_should_reject_invalid_backend_reference(self):
+        """
+        Should reject a target referencing a non-existent backend.
+
+        Given: A scenario with backend "gpu-vllm" but target referencing "nonexistent"
+        When: Creating the ScenarioConfig
+        Then: Validation error mentioning "unknown backend" is raised
+        """
+        # When / Then
         with pytest.raises(Exception, match="unknown backend"):
             ScenarioConfig(
                 name="t",
@@ -136,8 +302,58 @@ class TestBenchmarkTarget:
             )
 
 
-class TestScenarioValidation:
-    def test_run_id_generated(self) -> None:
+class TestScenarioBackends:
+    """Tests for ScenarioConfig backend-related features."""
+
+    def test_should_find_backend_by_name(self):
+        """
+        Should return the matching backend when name exists.
+
+        Given: A scenario with backend "gpu-vllm"
+        When: Calling get_backend("gpu-vllm")
+        Then: Returns the correct backend
+        """
+        # Given
+
+        cfg = ScenarioConfig(
+            name="t",
+            backends=[
+                BackendConfig(name="gpu-vllm", url="http://10.0.0.1:8000", type=Backend.vllm)
+            ],
+            models=[ModelConfig(name="m1")],
+            conversations=[
+                ConversationTemplate(name="c1", turns=[Message(role="user", content="hi")])
+            ],
+            targets=[{"backend": "gpu-vllm", "model": "m1", "conversation": "c1"}],
+        )
+
+        # When
+        backend = cfg.get_backend("gpu-vllm")
+
+        # Then
+        assert backend.name == "gpu-vllm"
+
+    def test_should_raise_when_backend_not_found(self, scenario: ScenarioConfig):
+        """
+        Should raise KeyError when backend name does not exist.
+
+        Given: A scenario without backends
+        When: Calling get_backend("nonexistent")
+        Then: KeyError is raised
+        """
+        # When / Then
+        with pytest.raises(KeyError):
+            scenario.get_backend("nonexistent")
+
+    def test_should_generate_8_char_run_id(self):
+        """
+        Should auto-generate an 8-character run_id.
+
+        Given: A valid scenario without explicit run_id
+        When: Creating the ScenarioConfig
+        Then: run_id is 8 characters long
+        """
+        # Given / When
         cfg = ScenarioConfig(
             name="t",
             backends=[BackendConfig(name="b1", url="http://localhost:8000")],
@@ -147,30 +363,82 @@ class TestScenarioValidation:
             ],
             targets=[{"backend": "b1", "model": "m1", "conversation": "c1"}],
         )
+
+        # Then
         assert len(cfg.run_id) == 8
 
 
 class TestLoadConfig:
-    def test_defaults(self) -> None:
-        lc = LoadConfig()
-        assert lc.ramp_levels is None
-        assert lc.ramp_pause_seconds == 10.0
+    """Tests for LoadConfig defaults and validation."""
 
-    def test_ramp_levels_parsed(self) -> None:
-        lc = LoadConfig(ramp_levels=[1, 5, 10])
-        assert lc.ramp_levels == [1, 5, 10]
+    def test_should_default_ramp_levels_to_none(self):
+        """
+        Should have ramp_levels=None and ramp_pause_seconds=10.0 by default.
 
-    def test_ramp_pause_seconds_custom(self) -> None:
-        lc = LoadConfig(ramp_pause_seconds=5.0)
-        assert lc.ramp_pause_seconds == 5.0
+        Given: No ramp parameters specified
+        When: Creating a LoadConfig
+        Then: Defaults are applied
+        """
+        # When
+        load = LoadConfig()
 
-    def test_ramp_pause_negative_rejected(self) -> None:
+        # Then
+        assert load.ramp_levels is None
+        assert load.ramp_pause_seconds == 10.0
+
+    def test_should_accept_ramp_levels_list(self):
+        """
+        Should store ramp_levels when provided as a list.
+
+        Given: ramp_levels=[1, 5, 10]
+        When: Creating a LoadConfig
+        Then: ramp_levels is stored correctly
+        """
+        # When
+        load = LoadConfig(ramp_levels=[1, 5, 10])
+
+        # Then
+        assert load.ramp_levels == [1, 5, 10]
+
+    def test_should_accept_custom_ramp_pause(self):
+        """
+        Should store custom ramp_pause_seconds.
+
+        Given: ramp_pause_seconds=5.0
+        When: Creating a LoadConfig
+        Then: Value is stored
+        """
+        # When
+        load = LoadConfig(ramp_pause_seconds=5.0)
+
+        # Then
+        assert load.ramp_pause_seconds == 5.0
+
+    def test_should_reject_negative_ramp_pause(self):
+        """
+        Should reject negative ramp_pause_seconds.
+
+        Given: ramp_pause_seconds=-1.0
+        When: Creating a LoadConfig
+        Then: Validation error is raised
+        """
+        # When / Then
         with pytest.raises(Exception):
             LoadConfig(ramp_pause_seconds=-1.0)
 
 
 class TestLoadScenario:
-    def test_load_valid_yaml(self, tmp_path: Path) -> None:
+    """Tests for YAML scenario loading via load_scenario()."""
+
+    def test_should_load_valid_yaml(self, tmp_path: Path):
+        """
+        Should parse and validate a correct YAML scenario file.
+
+        Given: A valid YAML scenario file on disk
+        When: Calling load_scenario()
+        Then: Returns a ScenarioConfig with correct values
+        """
+        # Given
         data = {
             "name": "test",
             "backends": [{"name": "b1", "url": "http://localhost:8000", "type": "vllm"}],
@@ -180,16 +448,38 @@ class TestLoadScenario:
         }
         f = tmp_path / "scenario.yaml"
         f.write_text(yaml.dump(data))
+
+        # When
         cfg = load_scenario(f)
+
+        # Then
         assert cfg.name == "test"
         assert len(cfg.backends) == 1
 
-    def test_load_missing_file(self, tmp_path: Path) -> None:
+    def test_should_raise_when_file_not_found(self, tmp_path: Path):
+        """
+        Should raise FileNotFoundError for missing files.
+
+        Given: A path to a non-existent file
+        When: Calling load_scenario()
+        Then: FileNotFoundError is raised
+        """
+        # When / Then
         with pytest.raises(FileNotFoundError):
             load_scenario(tmp_path / "nope.yaml")
 
-    def test_load_invalid_schema(self, tmp_path: Path) -> None:
+    def test_should_raise_when_schema_invalid(self, tmp_path: Path):
+        """
+        Should raise validation error when required fields are missing.
+
+        Given: A YAML file with only "name" field
+        When: Calling load_scenario()
+        Then: Validation error is raised
+        """
+        # Given
         f = tmp_path / "bad.yaml"
-        f.write_text("name: test\n")  # missing required fields
+        f.write_text("name: test\n")
+
+        # When / Then
         with pytest.raises(Exception):
             load_scenario(f)

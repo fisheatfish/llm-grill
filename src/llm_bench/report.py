@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import csv
 import json
-from dataclasses import asdict
 from pathlib import Path
 
 from rich.console import Console
@@ -50,7 +49,7 @@ def load_jsonl(path: Path) -> list[RequestMetrics]:
     results = []
     for line in path.read_text().splitlines():
         if line.strip():
-            results.append(RequestMetrics(**json.loads(line)))
+            results.append(RequestMetrics.model_validate_json(line))
     return results
 
 
@@ -58,7 +57,7 @@ def export_csv(results: list[RequestMetrics], path: Path) -> None:
     """Export results to CSV."""
     if not results:
         return
-    rows = [asdict(r) for r in results]
+    rows = [r.model_dump() for r in results]
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()), restval="")
         writer.writeheader()
