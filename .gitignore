@@ -1,5 +1,7 @@
 docs/plan/
 results/
+scenarios/*
+!scenarios/example.yaml
 
 *.csv
 .env
@@ -14,3 +16,5 @@ __pycache__/
 
 .claude/settings.local.json
 .coverage
+.claude/.fuse_*
+scripts/wrapper.sh
