@@ -1,10 +1,10 @@
-# Contributing to llm-bench
+# Contributing to llm-grill
 
 ## Setup
 
 ```bash
-git clone https://github.com/fisheatfish/llm-bench.git
-cd llm-bench
+git clone https://github.com/fisheatfish/llm-grill.git
+cd llm-grill
 make install
 make test
 ```
@@ -51,11 +51,11 @@ tests/
 - Use **Given / When / Then** pattern in docstrings
 - Use `pytest-mock` (`mocker` fixture), not `unittest.mock`
 - Use `respx` for HTTP mocking
-- Target coverage: >80% on `src/llm_bench/`
+- Target coverage: >80% on `src/llm_grill/`
 
 ## Adding a new backend
 
-1. Create `src/llm_bench/clients/mybackend.py` inheriting `BaseClient`
+1. Create `src/llm_grill/clients/mybackend.py` inheriting `BaseClient`
 2. Implement `backend_metrics()` (optionally override `health()`)
 3. Add the enum value in `config.py` -> `Backend`
 4. Register it in `clients/__init__.py` -> `_REGISTRY`

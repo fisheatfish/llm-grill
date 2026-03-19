@@ -12,9 +12,9 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from llm_bench.cli import app
-from llm_bench.metrics import RequestMetrics
-from llm_bench.report import JsonlWriter
+from llm_grill.cli import app
+from llm_grill.metrics import RequestMetrics
+from llm_grill.report import JsonlWriter
 
 cli_runner = CliRunner()
 

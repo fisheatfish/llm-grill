@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 import anyio
 import anyio.abc
 
-from llm_bench.config import BackendConfig
+from llm_grill.config import BackendConfig
 
 logger = logging.getLogger(__name__)
 

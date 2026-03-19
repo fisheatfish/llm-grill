@@ -9,9 +9,9 @@ from datetime import UTC, datetime
 
 import anyio
 
-from llm_bench.clients import get_client
-from llm_bench.clients.base import BaseClient
-from llm_bench.config import (
+from llm_grill.clients import get_client
+from llm_grill.clients.base import BaseClient
+from llm_grill.config import (
     BackendConfig,
     BenchmarkTarget,
     ConversationTemplate,
@@ -20,8 +20,8 @@ from llm_bench.config import (
     ModelConfig,
     ScenarioConfig,
 )
-from llm_bench.gpu_monitor import GpuMonitor
-from llm_bench.metrics import RequestMetrics
+from llm_grill.gpu_monitor import GpuMonitor
+from llm_grill.metrics import RequestMetrics
 
 logger = logging.getLogger(__name__)
 

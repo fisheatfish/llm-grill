@@ -10,7 +10,7 @@ import json
 
 import pytest
 
-from llm_bench.metrics import (
+from llm_grill.metrics import (
     RequestMetrics,
     aggregate,
     aggregate_conversations,

@@ -43,7 +43,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 - In ramp mode (`ramp_levels`), the **Conversation Quality Metrics** table (KV cache hit rate, turn-to-turn ratio, context growth factor) was not displayed after the Load Ramp Results table — a premature `return` in `_print_results` and a misplaced `else` in `report` hid the conversation metrics
-- `llm-bench report --format table` command: same fix — the conversation table was inside the `else` block and thus ignored in ramp mode
+- `llm-grill report --format table` command: same fix — the conversation table was inside the `else` block and thus ignored in ramp mode
 
 ## [0.5.0] - 2026-03-11
 
@@ -55,8 +55,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `group_by_level()` in `metrics.py` — groups results by `(server, model, concurrent_users_level)`
 - `is_ramp_run()` in `metrics.py` — auto-detects whether a JSONL file contains multiple distinct levels
 - `print_ramp_table()` in `report.py` — dedicated Rich table: Server | Model | Users | Requests | Success% | TTFT mean | TTFT p95 | E2E mean | E2E p95 | Tok/s total, sorted by (server, model, level)
-- `llm-bench run` and `llm-bench report --format table` auto-detect ramp mode and display the dedicated table
-- `llm-bench show-scenario` displays `ramp_levels` and `ramp_pause_seconds` when present
+- `llm-grill run` and `llm-grill report --format table` auto-detect ramp mode and display the dedicated table
+- `llm-grill show-scenario` displays `ramp_levels` and `ramp_pause_seconds` when present
 
 ### Changed
 - `BenchmarkRunner.run()` delegates to `RampRunner` when `ramp_levels` is set; classic path unchanged otherwise
@@ -100,7 +100,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `LoadConfig.ramp_up_seconds` and `think_time_seconds` reject negative values (`ge=0`)
 - `t_last` is now always updated after the SSE stream ends, even without a `[DONE]` token
 - Malformed SSE chunks silently ignored (`json.JSONDecodeError` caught)
-- `total_duration` in `llm-bench report` correctly computed via `estimate_total_duration()` (timestamps + E2E) instead of `max(e2e_latency)`
+- `total_duration` in `llm-grill report` correctly computed via `estimate_total_duration()` (timestamps + E2E) instead of `max(e2e_latency)`
 - User iterations are now sequential — ramp-up is applied per user within its own coroutine
 - `export_csv` uses the union of all keys (heterogeneous `backend_metrics` columns across servers)
 - `JsonlWriter` opens the file in `__enter__`, not in `__init__`
@@ -114,7 +114,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `--version` displays `0.3.0`
 - `tests/test_cli.py` — coverage of all 4 commands via `CliRunner`
 - `tests/test_report.py` — coverage of `JsonlWriter`, `load_jsonl`, `export_csv`
-- `src/llm_bench/py.typed` — PEP 561 marker (`Typing :: Typed` classifier honored)
+- `src/llm_grill/py.typed` — PEP 561 marker (`Typing :: Typed` classifier honored)
 - `pytest-cov` in dev dependencies
 - `ruff format --check` in CI
 
@@ -135,21 +135,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   - **KV Cache Hit Rate** — averaged from SGLang `/server_info` (`cache_hit_rate`)
   - **KV Cache Usage** — averaged from vLLM `/metrics` (`vllm:gpu_cache_usage_perc`)
 - `print_conversation_table()` in `report.py` — Rich table for conversation metrics
-- `llm-bench report --no-conversations` flag to hide conversation metrics table
+- `llm-grill report --no-conversations` flag to hide conversation metrics table
 - `--format json` now includes both `summary` and `conversations` sections
 - Fixed invalid TOML syntax in `pyproject.toml` authors field
 
 ## [0.1.0] - 2026-03-10
 
 ### Added
-- `llm-bench run` — benchmark a YAML scenario, write results to JSONL
-- `llm-bench ping` — test server connectivity
-- `llm-bench show-scenario` — validate and display a scenario file
-- `llm-bench report` — generate summary table, JSON, or CSV from a results file
+- `llm-grill run` — benchmark a YAML scenario, write results to JSONL
+- `llm-grill ping` — test server connectivity
+- `llm-grill show-scenario` — validate and display a scenario file
+- `llm-grill report` — generate summary table, JSON, or CSV from a results file
 - Backend clients for vLLM, SGLang, llama.cpp, and LiteLLM
 - Client-side TTFT, TPOT, and E2E latency measurement via SSE streaming
 - JSONL output format (streamable, pandas/Polars compatible)
-- CSV export via `--format csv` or `llm-bench report --format csv`
+- CSV export via `--format csv` or `llm-grill report --format csv`
 - YAML scenario format with multi-turn conversations, concurrent users, and ramp-up
 - Example scenario for Scaleway infrastructure (Devstral-Small-2-24B, 3 backends)
 - Prometheus scraping for vLLM (`/metrics`) and SGLang (`/server_info`)

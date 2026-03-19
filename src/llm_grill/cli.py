@@ -11,9 +11,9 @@ import typer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
-from llm_bench import __version__
-from llm_bench.clients import get_client
-from llm_bench.metrics import (
+from llm_grill import __version__
+from llm_grill.clients import get_client
+from llm_grill.metrics import (
     RequestMetrics,
     aggregate,
     aggregate_conversations,
@@ -21,7 +21,7 @@ from llm_bench.metrics import (
     group_by_target,
     is_ramp_run,
 )
-from llm_bench.report import (
+from llm_grill.report import (
     JsonlWriter,
     console,
     export_csv,
@@ -31,11 +31,11 @@ from llm_bench.report import (
     print_ramp_table,
     print_summary_table,
 )
-from llm_bench.runner import BenchmarkRunner
-from llm_bench.scenario import load_scenario
+from llm_grill.runner import BenchmarkRunner
+from llm_grill.scenario import load_scenario
 
 app = typer.Typer(
-    name="llm-bench",
+    name="llm-grill",
     help="Benchmark LLM inference servers (vLLM, SGLang, llama.cpp, LiteLLM).",
     add_completion=False,
 )
@@ -44,7 +44,7 @@ err_console = Console(stderr=True, style="bold red")
 
 def version_callback(value: bool) -> None:
     if value:
-        typer.echo(f"llm-bench {__version__}")
+        typer.echo(f"llm-grill {__version__}")
         raise typer.Exit()
 
 
@@ -73,7 +73,7 @@ def main(
 
 
 # ---------------------------------------------------------------------------
-# llm-bench run
+# llm-grill run
 # ---------------------------------------------------------------------------
 
 
@@ -136,7 +136,7 @@ def run(
 
 
 # ---------------------------------------------------------------------------
-# llm-bench ping
+# llm-grill ping
 # ---------------------------------------------------------------------------
 
 
@@ -164,7 +164,7 @@ def ping(
 
 
 # ---------------------------------------------------------------------------
-# llm-bench show-scenario
+# llm-grill show-scenario
 # ---------------------------------------------------------------------------
 
 
@@ -217,7 +217,7 @@ def show_scenario(
 
 
 # ---------------------------------------------------------------------------
-# llm-bench report
+# llm-grill report
 # ---------------------------------------------------------------------------
 
 

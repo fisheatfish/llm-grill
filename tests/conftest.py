@@ -1,10 +1,10 @@
-"""Shared fixtures for llm-bench tests."""
+"""Shared fixtures for llm-grill tests."""
 
 from __future__ import annotations
 
 import pytest
 
-from llm_bench.config import (
+from llm_grill.config import (
     Backend,
     BackendConfig,
     BenchmarkTarget,

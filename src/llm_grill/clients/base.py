@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from llm_bench.config import BackendConfig, Message, ModelConfig
+from llm_grill.config import BackendConfig, Message, ModelConfig
 
 logger = logging.getLogger(__name__)
 

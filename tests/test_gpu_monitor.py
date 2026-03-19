@@ -5,7 +5,7 @@ Tests nvidia-smi CSV parsing and bisect-based nearest snapshot lookup.
 
 from __future__ import annotations
 
-from llm_bench.gpu_monitor import GpuMonitor, GpuSnapshot, _parse_nvidia_csv
+from llm_grill.gpu_monitor import GpuMonitor, GpuSnapshot, _parse_nvidia_csv
 
 
 class TestParseNvidiaCsv:

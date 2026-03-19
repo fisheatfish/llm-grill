@@ -9,7 +9,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 
-from llm_bench.metrics import (
+from llm_grill.metrics import (
     AggregatedMetrics,
     ConversationMetrics,
     RequestMetrics,
