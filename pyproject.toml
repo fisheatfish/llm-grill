@@ -45,6 +45,7 @@ dev = [
     "pytest-cov>=5",
     "respx>=0.21",
     "ruff>=0.4",
+    "python-semantic-release>=10",
 ]
 
 [project.urls]
@@ -72,3 +73,17 @@ src = ["src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
+
+[tool.semantic_release]
+version_toml = []
+version_variables = ["src/llm_grill/__init__.py:__version__"]
+branch = "main"
+commit_message = "chore: release {version}"
+build_command = "make build"
+
+[tool.semantic_release.changelog]
+changelog_file = "CHANGELOG.md"
+
+[tool.semantic_release.remote]
+type = "github"
+token = { env = "GH_TOKEN" }
