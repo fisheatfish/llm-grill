@@ -1,4 +1,4 @@
-# ADR 001: Architecture CLI llm-grill
+# ADR 002: Architecture CLI llm-grill
 
 **Date:** 2026-03-10
 **Status:** Accepted

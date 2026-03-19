@@ -9,7 +9,7 @@ Source of truth for build and development. Optimized for Claude Code.
 Python CLI benchmark for LLM inference servers.
 Measures TTFT, TPOT, E2E latency, throughput, success rate, KV cache effectiveness (turn-to-turn ratio, hit rate, usage), and GPU metrics (utilization, memory, power) via SSH across multi-conversation multi-server scenarios.
 
-**Architecture decisions**: `docs/adr/001-architecture-cli-llm-grill.md`
+**Architecture decisions**: `docs/adr/` (001: custom tool rationale, 002: architecture)
 **Implementation plan**: `docs/plan/implementation-plan.md` (not versioned)
 
 ---
