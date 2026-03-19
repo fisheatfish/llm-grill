@@ -22,10 +22,14 @@ make test
 
 ## Workflow
 
-1. Branch from `main`: `git checkout -b feat/my-feature`
+1. Branch from `main` using a descriptive name:
+   - `feat/add-tgi-backend` — new feature
+   - `fix/sse-timeout` — bug fix
+   - `docs/scenario-examples` — documentation
+   - `refactor/client-factory` — refactoring
 2. Write code + tests
 3. `make lint` then `make test`
-4. Open a PR against `main`
+4. Open a PR against `main` — never push directly to `main`
 
 ## Code conventions
 

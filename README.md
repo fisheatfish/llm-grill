@@ -1,12 +1,14 @@
 # llm-grill
 
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
+[![CI](https://github.com/fisheatfish/llm-grill/actions/workflows/ci.yml/badge.svg)](https://github.com/fisheatfish/llm-grill/actions/workflows/ci.yml)
+
 CLI for benchmarking LLM inference servers: vLLM, SGLang, llama.cpp, LiteLLM.
 
 Measures **TTFT**, **TPOT**, **end-to-end latency**, **throughput**, **success rate**, **KV cache quality metrics**, and **load ramp** (breaking-point detection) on multi-turn conversation scenarios.
 
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
-[![CI](https://github.com/fisheatfish/llm-grill/actions/workflows/ci.yml/badge.svg)](https://github.com/fisheatfish/llm-grill/actions/workflows/ci.yml)
+![llm-grill Demo](docs/demo.gif)
 
 ---
 
@@ -38,13 +40,13 @@ cp scenarios/example.yaml scenarios/my-bench.yaml
 **1. Check connectivity**
 
 ```bash
-llm-grill ping scenarios/scaleway-devstral.yaml
+llm-grill ping scenarios/my-bench.yaml
 ```
 
 **2. Run a benchmark**
 
 ```bash
-llm-grill run scenarios/scaleway-devstral.yaml --output results.jsonl
+llm-grill run scenarios/my-bench.yaml --output results.jsonl
 ```
 
 After the run, tables are printed automatically:
@@ -102,6 +104,18 @@ llm-grill report results.jsonl --no-conversations
 |---|---|
 | `--verbose / -v` | Enable debug logging |
 | `--version / -V` | Print version and exit |
+
+---
+
+## Supported backends
+
+| Backend | Type | Metrics source | Notes |
+|---|---|---|---|
+| [vLLM](https://github.com/vllm-project/vllm) | `vllm` | Prometheus `/metrics` | KV cache usage |
+| [SGLang](https://github.com/sgl-project/sglang) | `sglang` | Prometheus `/metrics` | Cache hit rate |
+| [llama.cpp](https://github.com/ggerganov/llama.cpp) | `llamacpp` | `/health` endpoint | GGUF models |
+| [LiteLLM](https://github.com/BerriAI/litellm) | `litellm` | Gateway routing | Proxy for multiple backends |
+| OpenAI-compatible | `openai` | — | Reuses vLLM client |
 
 ---
 
@@ -197,6 +211,22 @@ Computed per `(server, model, conversation)` group:
 | **Context Growth Factor** | `mean(E2E last turn) / mean(E2E first turn)` | > 1 → latency increases with context |
 | **KV Cache Hit Rate** | Prompt tokens served from cache | SGLang only (Prometheus) |
 | **KV Cache Usage** | GPU KV cache capacity used | vLLM only (Prometheus) |
+
+### GPU monitoring
+
+Enable per-backend GPU metrics (utilization, memory, temperature, power) collected via SSH:
+
+```yaml
+backends:
+  - name: gpu-vllm
+    url: http://gpu-vllm:8000
+    type: vllm
+    gpu_monitoring: true
+    ssh_host: gpu-vllm       # defaults to URL host if omitted
+    ssh_user: root            # default
+```
+
+Requires `nvidia-smi` on the target host and SSH key-based access.
 
 ---
 
