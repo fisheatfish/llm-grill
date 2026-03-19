@@ -17,3 +17,4 @@ __pycache__/
 .claude/settings.local.json
 .coverage
 .claude/.fuse_*
+scripts/wrapper.sh
