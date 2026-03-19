@@ -28,6 +28,13 @@ llm-grill --version
 
 ## Quick start
 
+Copy the example scenario and adapt it to your setup:
+
+```bash
+cp scenarios/example.yaml scenarios/my-bench.yaml
+# Edit URLs, model name, and API key
+```
+
 **1. Check connectivity**
 
 ```bash

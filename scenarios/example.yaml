@@ -1,0 +1,50 @@
+# Example scenario — getting started with llm-grill
+# Replace localhost URLs with your actual inference server addresses.
+# See README.md for the full scenario format reference.
+
+name: example
+description: >
+  Minimal example scenario benchmarking a single vLLM backend
+  with a short coding prompt and a multi-turn conversation.
+
+backends:
+  - name: my-server
+    url: http://localhost:8000
+    type: vllm
+    api_key: ${INFERENCE_API_KEY}  # or "none" if auth is disabled
+    timeout: 120.0
+
+models:
+  - name: my-model
+    max_tokens: 256
+    temperature: 0.0
+
+conversations:
+  - name: single-turn
+    description: Simple coding question — baseline latency measurement
+    turns:
+      - role: user
+        content: "Write a Python function that checks whether a string is a palindrome."
+
+  - name: multi-turn
+    description: Two-turn follow-up — measures KV cache reuse across turns
+    turns:
+      - role: system
+        content: "You are a helpful coding assistant. Be concise."
+      - role: user
+        content: "What is a binary search tree?"
+      - role: user
+        content: "Show me a Python implementation with insert and search methods."
+
+targets:
+  - backend: my-server
+    model: my-model
+    conversation: single-turn
+
+  - backend: my-server
+    model: my-model
+    conversation: multi-turn
+
+load:
+  concurrent_users: 1
+  iterations: 1
