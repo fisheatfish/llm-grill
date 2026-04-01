@@ -9,6 +9,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-04-01
+
+### Added
+- **top_k parameter** that controls the number of top tokens to consider.
+- **content_file parameter** for loading conversation content from external files.
+
 ## [0.1.0] - 2026-03-19
 
 ### Added
