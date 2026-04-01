@@ -14,4 +14,8 @@ def load_scenario(path: Path) -> ScenarioConfig:
     if not path.exists():
         raise FileNotFoundError(f"Scenario file not found: {path}")
     raw = yaml.safe_load(path.read_text())
-    return ScenarioConfig.model_validate(raw)
+    config = ScenarioConfig.model_validate(raw)
+    for conv in config.conversations:
+        for msg in conv.turns:
+            msg.resolve(path.parent)
+    return config

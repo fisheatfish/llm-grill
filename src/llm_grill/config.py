@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 from enum import StrEnum
+from pathlib import Path
 from typing import Annotated, Literal
 from uuid import uuid4
 
@@ -65,11 +66,30 @@ class ModelConfig(BaseModel):
     max_tokens: PositiveInt = 512
     temperature: Annotated[float, Field(ge=0.0, le=2.0)] = 0.0
     top_p: Annotated[float, Field(ge=0.0, le=1.0)] = 1.0
+    top_k: Annotated[int, Field(ge=-1)] = -1
 
 
 class Message(BaseModel):
     role: Literal["system", "user", "assistant"]
-    content: str
+    content: str | None = None
+    content_file: str | None = None
+
+    @model_validator(mode="after")
+    def check_content_source(self) -> Message:
+        if self.content is not None and self.content_file is not None:
+            raise ValueError("Set either 'content' or 'content_file', not both")
+        if self.content is None and self.content_file is None:
+            raise ValueError("One of 'content' or 'content_file' is required")
+        return self
+
+    def resolve(self, base_dir: Path) -> None:
+        """Read content_file relative to base_dir and set content."""
+        if self.content_file is not None:
+            p = base_dir / self.content_file
+            if not p.exists():
+                raise FileNotFoundError(f"content_file not found: {p}")
+            self.content = p.read_text()
+            self.content_file = None
 
 
 class ConversationTemplate(BaseModel):

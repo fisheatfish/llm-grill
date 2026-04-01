@@ -427,6 +427,122 @@ class TestLoadConfig:
             LoadConfig(ramp_pause_seconds=-1.0)
 
 
+class TestMessageContentFile:
+    """Tests for Message content_file external reference resolution."""
+
+    def test_should_resolve_content_from_file_when_content_file_set(self, tmp_path: Path):
+        """
+        Should read file content and clear content_file after resolve.
+
+        Given: A Message with content_file pointing to an existing file
+        When: Calling resolve()
+        Then: content is populated from the file and content_file is cleared
+        """
+        # Given
+        f = tmp_path / "doc.txt"
+        f.write_text("hello world")
+        msg = Message(role="user", content_file="doc.txt")
+
+        # When
+        msg.resolve(tmp_path)
+
+        # Then
+        assert msg.content == "hello world"
+        assert msg.content_file is None
+
+    def test_should_reject_when_both_content_and_content_file_provided(self):
+        """
+        Should raise ValidationError when both content sources are set.
+
+        Given: Both content and content_file specified
+        When: Creating a Message
+        Then: Validation error mentioning "not both" is raised
+        """
+        # When / Then
+        with pytest.raises(Exception, match="not both"):
+            Message(role="user", content="hi", content_file="doc.txt")
+
+    def test_should_reject_when_neither_content_nor_content_file_provided(self):
+        """
+        Should raise ValidationError when no content source is set.
+
+        Given: Neither content nor content_file specified
+        When: Creating a Message
+        Then: Validation error mentioning "required" is raised
+        """
+        # When / Then
+        with pytest.raises(Exception, match="required"):
+            Message(role="user")
+
+    def test_should_raise_when_content_file_does_not_exist(self, tmp_path: Path):
+        """
+        Should raise FileNotFoundError when referenced file is missing.
+
+        Given: A Message with content_file pointing to a non-existent file
+        When: Calling resolve()
+        Then: FileNotFoundError with descriptive message is raised
+        """
+        # Given
+        msg = Message(role="user", content_file="missing.txt")
+
+        # When / Then
+        with pytest.raises(FileNotFoundError, match="content_file not found"):
+            msg.resolve(tmp_path)
+
+    def test_should_noop_when_content_is_inline(self, tmp_path: Path):
+        """
+        Should leave inline content unchanged after resolve.
+
+        Given: A Message with inline content (no content_file)
+        When: Calling resolve()
+        Then: content remains unchanged
+        """
+        # Given
+        msg = Message(role="user", content="already inline")
+
+        # When
+        msg.resolve(tmp_path)
+
+        # Then
+        assert msg.content == "already inline"
+
+    def test_should_resolve_content_file_in_scenario_loading(self, tmp_path: Path):
+        """
+        Should resolve content_file references when loading a full scenario from YAML.
+
+        Given: A YAML scenario with a turn using content_file
+        When: Calling load_scenario()
+        Then: The turn content is populated from the referenced file
+        """
+        # Given
+        ctx = tmp_path / "ctx.txt"
+        ctx.write_text("big context here")
+        data = {
+            "name": "test",
+            "backends": [{"name": "b1", "url": "http://localhost:8000", "type": "vllm"}],
+            "models": [{"name": "m1"}],
+            "conversations": [
+                {
+                    "name": "c1",
+                    "turns": [
+                        {"role": "user", "content_file": "ctx.txt"},
+                        {"role": "user", "content": "summarize"},
+                    ],
+                }
+            ],
+            "targets": [{"backend": "b1", "model": "m1", "conversation": "c1"}],
+        }
+        f = tmp_path / "scenario.yaml"
+        f.write_text(yaml.dump(data))
+
+        # When
+        cfg = load_scenario(f)
+
+        # Then
+        assert cfg.conversations[0].turns[0].content == "big context here"
+        assert cfg.conversations[0].turns[1].content == "summarize"
+
+
 class TestLoadScenario:
     """Tests for YAML scenario loading via load_scenario()."""
 
