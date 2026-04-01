@@ -18,3 +18,5 @@ __pycache__/
 .coverage
 .claude/.fuse_*
 scripts/wrapper.sh
+
+.DS_Store

@@ -134,6 +134,7 @@ class BaseClient(ABC):
             "max_tokens": model.max_tokens,
             "temperature": model.temperature,
             "top_p": model.top_p,
+            **({"top_k": model.top_k} if model.top_k >= 0 else {}),
             "stream": True,
             "stream_options": {"include_usage": True},
         }
