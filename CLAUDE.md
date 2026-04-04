@@ -107,6 +107,7 @@ models:
 conversations:
   - name: string
     description: string
+    unique_prefix: bool              # default false — prepend [session-{user_id}-{iter}] to break prefix caching
     turns:
       - role: system|user|assistant
         content: string

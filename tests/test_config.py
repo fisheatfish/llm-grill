@@ -302,6 +302,38 @@ class TestBenchmarkTarget:
             )
 
 
+class TestUniquePrefix:
+    """Tests for ConversationTemplate unique_prefix flag."""
+
+    def test_should_default_unique_prefix_to_false(self):
+        """
+        Given: A conversation without unique_prefix
+        When: Creating the ConversationTemplate
+        Then: unique_prefix defaults to False
+        """
+        # When
+        conv = ConversationTemplate(
+            name="c1", turns=[Message(role="user", content="hi")]
+        )
+
+        # Then
+        assert conv.unique_prefix is False
+
+    def test_should_accept_unique_prefix_true(self):
+        """
+        Given: A conversation with unique_prefix=True
+        When: Creating the ConversationTemplate
+        Then: unique_prefix is True
+        """
+        # When
+        conv = ConversationTemplate(
+            name="c1", unique_prefix=True, turns=[Message(role="user", content="hi")]
+        )
+
+        # Then
+        assert conv.unique_prefix is True
+
+
 class TestScenarioBackends:
     """Tests for ScenarioConfig backend-related features."""
 

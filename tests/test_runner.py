@@ -181,6 +181,83 @@ class TestRampRunner:
         assert {r.concurrent_users_level for r in results} == {1, 2}
 
 
+class TestUniquePrefixInjection:
+    """Tests for unique_prefix injection in ConversationRunner."""
+
+    async def test_should_prepend_session_prefix_when_unique_prefix_enabled(
+        self,
+        scenario: ScenarioConfig,
+        mock_client,
+    ):
+        """
+        Given: A conversation with unique_prefix=True
+        When: Running the conversation for user_id=3, iteration=1
+        Then: The first message sent to the client starts with [session-3-1]
+        """
+        # Given
+        from llm_grill.config import ConversationTemplate, Message
+
+        conv = ConversationTemplate(
+            name="unique",
+            unique_prefix=True,
+            turns=[Message(role="user", content="Hello world")],
+        )
+
+        collected: list[RequestMetrics] = []
+        runner = ConversationRunner(
+            backend=scenario.get_backend("test-vllm"),
+            model=scenario.get_model("test-model"),
+            conversation=conv,
+            scenario_name="test",
+            user_id=3,
+            iteration=1,
+            think_time=0.0,
+            on_result=collected.append,
+        )
+
+        # When
+        await runner.run()
+
+        # Then
+        call_args = mock_client.complete.call_args
+        messages = call_args[0][0]
+        assert messages[0].content.startswith("[session-3-1]")
+        assert "Hello world" in messages[0].content
+
+    async def test_should_not_prepend_prefix_when_unique_prefix_disabled(
+        self,
+        scenario: ScenarioConfig,
+        mock_client,
+    ):
+        """
+        Given: A conversation with unique_prefix=False (default)
+        When: Running the conversation
+        Then: The message content is unchanged
+        """
+        # Given
+        collected: list[RequestMetrics] = []
+        conv = scenario.get_conversation("simple")
+
+        runner = ConversationRunner(
+            backend=scenario.get_backend("test-vllm"),
+            model=scenario.get_model("test-model"),
+            conversation=conv,
+            scenario_name="test",
+            user_id=0,
+            iteration=0,
+            think_time=0.0,
+            on_result=collected.append,
+        )
+
+        # When
+        await runner.run()
+
+        # Then
+        call_args = mock_client.complete.call_args
+        messages = call_args[0][0]
+        assert messages[0].content == "Say hello."
+
+
 class TestConversationRunnerMetricsClient:
     """Tests for metrics client delegation in ConversationRunner."""
 
