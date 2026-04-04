@@ -12,6 +12,7 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
+from llm_grill import __version__
 from llm_grill.cli import app
 from llm_grill.metrics import RequestMetrics
 from llm_grill.report import JsonlWriter
@@ -76,7 +77,7 @@ class TestVersion:
 
         # Then
         assert result.exit_code == 0
-        assert "0.1.1" in result.output
+        assert __version__ in result.output
 
 
 class TestShowScenario:

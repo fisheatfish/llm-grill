@@ -193,6 +193,14 @@ The server-level `timeout` (default 120s) applies to each HTTP request (i.e. per
 
 ---
 
+## Commits & releases
+
+- **Conventional commits required**: `feat:`, `fix:`, `perf:`, `refactor:`, `docs:`, `chore:`, `test:`, `ci:`
+- **Version**: single source of truth in `src/llm_grill/__init__.py` — no other file should hardcode it
+- **Release process**: bump `__version__` in `__init__.py` → merge to main → auto-tag workflow generates CHANGELOG.md via git-cliff, creates git tag, triggers PyPI publish + GitHub Release
+
+---
+
 ## Code conventions
 
 - Short classes (< 80 lines). Single responsibility per class.
