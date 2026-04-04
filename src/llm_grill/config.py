@@ -95,6 +95,7 @@ class Message(BaseModel):
 class ConversationTemplate(BaseModel):
     name: str
     description: str = ""
+    unique_prefix: bool = False
     turns: list[Message]
 
     @model_validator(mode="after")

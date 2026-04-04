@@ -27,5 +27,5 @@ What actually happened.
 
 - OS: [e.g., macOS 14, Ubuntu 22.04]
 - Python version: [e.g., 3.12]
-- llm-grill version: [e.g., 0.1.1]
+- llm-grill version: [run `llm-grill --version`]
 - Backend type: [e.g., vllm, sglang, llamacpp, litellm]

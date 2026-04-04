@@ -63,10 +63,17 @@ class ConversationRunner:
     async def run(self) -> None:
         history: list[Message] = []
         turn_index = 0
+        prefix_injected = False
 
         async with get_client(self.backend) as client:
             for msg in self.conversation.turns:
                 if msg.role in ("system", "user"):
+                    if self.conversation.unique_prefix and not prefix_injected:
+                        msg = Message(
+                            role=msg.role,
+                            content=f"[session-{self.user_id}-{self.iteration}] {msg.content}",
+                        )
+                        prefix_injected = True
                     history.append(msg)
 
                 if msg.role != "user":

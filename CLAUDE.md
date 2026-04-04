@@ -107,6 +107,7 @@ models:
 conversations:
   - name: string
     description: string
+    unique_prefix: bool              # default false — prepend [session-{user_id}-{iter}] to break prefix caching
     turns:
       - role: system|user|assistant
         content: string
@@ -189,6 +190,14 @@ Client-side TTFT measurement:
 - TPOT = `(E2E - TTFT) / max(completion_tokens - 1, 1)`
 
 The server-level `timeout` (default 120s) applies to each HTTP request (i.e. per conversation turn), not to the whole conversation.
+
+---
+
+## Commits & releases
+
+- **Conventional commits required**: `feat:`, `fix:`, `perf:`, `refactor:`, `docs:`, `chore:`, `test:`, `ci:`
+- **Version**: single source of truth in `src/llm_grill/__init__.py` — no other file should hardcode it
+- **Release process**: bump `__version__` in `__init__.py` → merge to main → auto-tag workflow generates CHANGELOG.md via git-cliff, creates git tag, triggers PyPI publish + GitHub Release
 
 ---
 

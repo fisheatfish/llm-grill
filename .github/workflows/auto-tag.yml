@@ -1,0 +1,53 @@
+name: Auto Tag & Changelog
+
+on:
+  push:
+    branches: [main]
+    paths: ["src/llm_grill/__init__.py"]
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(python -c "import re; print(re.search(r'__version__\s*=\"(.+?)\"', open('src/llm_grill/__init__.py').read()).group(1))")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check tag does not exist
+        run: |
+          if git rev-parse "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "Tag ${{ steps.version.outputs.tag }} already exists, skipping."
+            exit 1
+          fi
+
+      - name: Install git-cliff
+        uses: orhun/git-cliff-action@v4
+        with:
+          args: --version
+
+      - name: Generate CHANGELOG
+        uses: orhun/git-cliff-action@v4
+        with:
+          args: --tag ${{ steps.version.outputs.tag }} --output CHANGELOG.md
+
+      - name: Commit changelog and tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          if git diff --cached --quiet; then
+            echo "No changelog changes"
+          else
+            git commit -m "chore(release): update changelog for ${{ steps.version.outputs.tag }}"
+          fi
+          git tag "${{ steps.version.outputs.tag }}"
+          git push origin main --tags
