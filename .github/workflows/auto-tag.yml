@@ -1,6 +1,7 @@
 name: Auto Tag & Changelog
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths: ["src/llm_grill/__init__.py"]
