@@ -37,9 +37,10 @@ commit_parsers = [
     { message = "^refactor", group = "Changed" },
     { message = "^docs", group = "Documentation" },
     { message = "^chore\\(release\\)", skip = true },
+    { message = "^chore: trigger", skip = true },
     { message = "^chore", group = "Other" },
     { message = "^test", group = "Other" },
-    { message = "^ci", group = "Other" },
+    { message = "^ci", skip = true },
 ]
 protect_breaking_commits = false
 filter_commits = false
