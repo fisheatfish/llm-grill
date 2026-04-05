@@ -6,27 +6,42 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
+## [0.1.2] - 2026-04-05
 
-## [Unreleased]
+### Added
+
+- add unique_prefix parameter (#10)
+- add CI & Publish workflow for testing and deployment
+- enable manual triggering of the auto-tag workflow
+- update CI workflow to handle version extraction and changelog generation
+
+### Changed
+
+- reorganize release job and update version check logic (#11)
+
+### Other
+
+- trigger release
 
 ## [0.1.1] - 2026-04-01
 
 ### Added
-- **top_k parameter** that controls the number of top tokens to consider.
-- **content_file parameter** for loading conversation content from external files.
+
+- add content_file and top_k parameters (#9)
+
+### Other
+
+- update version to 0.1.1 and reflect changes in bug report and tests
 
 ## [0.1.0] - 2026-03-19
 
 ### Added
-- **CLI commands** — `run`, `ping`, `show-scenario`, `report`
-- **Backend clients** for vLLM, SGLang, llama.cpp, LiteLLM, and OpenAI-compatible servers — one abstract base class + one concrete client per backend with shared SSE streaming
-- **Client-side latency measurement** — TTFT, TPOT, E2E latency via SSE streaming
-- **Conversation quality metrics** — turn-to-turn TTFT ratio (KV cache effectiveness), context growth factor, KV cache hit rate and usage
-- **Prometheus scraping** for vLLM and SGLang (`/metrics` endpoint) — KV cache usage, cache hit rate, running/waiting requests
-- **GPU metrics collection** via SSH (`nvidia-smi`) — utilization, memory, temperature, power, multi-GPU support
-- **Load ramp mode** (`ramp_levels`) — sweep multiple concurrency levels in a single run with auto-detected ramp results table
-- **YAML scenario format** — declarative multi-turn conversations, concurrent users, ramp-up, think time, `${ENV_VAR}` API key syntax
-- **JSONL output** — one record per request, streamable, directly loadable by pandas/Polars
-- **Report generation** — Rich terminal tables, JSON, and CSV export
-- **Example scenario** (`scenarios/example.yaml`) — ready-to-adapt template with localhost
-- **CI/CD** — GitHub Actions with Python 3.11/3.12 matrix, lint, test, PyPI publish on tag, GitHub Release
+
+- add GPU metrics collection and backend configuration support (#5)
+- name change from llm-bench to llm-grill
+- add environment specification for PyPI publishing job
+
+### Fixed
+
+- update pypa/gh-action-pypi-publish to working version
+
