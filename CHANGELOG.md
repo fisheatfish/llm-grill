@@ -22,6 +22,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Other
 
 - trigger release
+- trigger release
+- trigger release
 
 ## [0.1.1] - 2026-04-01
 
