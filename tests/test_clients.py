@@ -111,8 +111,8 @@ class TestGetClient:
         assert isinstance(get_client(server), LlamaCppClient)
 
 
-class TestVllmClientComplete:
-    """Tests for VllmClient streaming completion and health checks."""
+class TestBaseClientComplete:
+    """Tests for BaseClient streaming completion (shared by all backends)."""
 
     @respx.mock
     async def test_should_stream_and_measure_metrics_on_success(
@@ -147,6 +147,43 @@ class TestVllmClientComplete:
         assert result.prompt_tokens == 10
         assert result.ttft_s >= 0
         assert result.e2e_latency_s >= result.ttft_s
+
+    @respx.mock
+    async def test_should_only_send_openai_fields_in_messages(
+        self,
+        vllm_server: BackendConfig,
+        model: ModelConfig,
+    ):
+        """
+        Should not leak internal fields (e.g. content_file) into the API payload.
+
+        Given: Messages including a system message with content_file=None
+        When: Calling complete()
+        Then: Each message in the payload only contains 'role' and 'content'
+        """
+        # Given
+        allowed_keys = {"role", "content"}
+        msgs = [
+            Message(role="system", content="You are helpful"),
+            Message(role="user", content="hello"),
+        ]
+        route = respx.post("http://test-vllm:8000/v1/chat/completions").mock(
+            return_value=Response(
+                200,
+                content=_sse_body(["Hi"]),
+                headers={"content-type": "text/event-stream"},
+            )
+        )
+
+        # When
+        async with get_client(vllm_server) as client:
+            await client.complete(msgs, model)
+
+        # Then
+        payload = json.loads(route.calls[0].request.content)
+        for msg in payload["messages"]:
+            extra = set(msg.keys()) - allowed_keys
+            assert not extra, f"Unexpected fields in API payload: {extra}"
 
     @respx.mock
     async def test_should_raise_on_http_error(
