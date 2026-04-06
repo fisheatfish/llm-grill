@@ -130,7 +130,7 @@ class BaseClient(ABC):
     def _build_payload(self, messages: list[Message], model: ModelConfig) -> dict:
         return {
             "model": model.name,
-            "messages": [m.model_dump() for m in messages],
+            "messages": [m.model_dump(exclude={"content_file"}) for m in messages],
             "max_tokens": model.max_tokens,
             "temperature": model.temperature,
             "top_p": model.top_p,
