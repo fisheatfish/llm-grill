@@ -14,7 +14,7 @@ from llm_grill.metrics import (
     aggregate as _aggregate,
 )
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 
 __all__ = [
     "__version__",
