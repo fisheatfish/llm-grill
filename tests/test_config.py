@@ -312,9 +312,7 @@ class TestUniquePrefix:
         Then: unique_prefix defaults to False
         """
         # When
-        conv = ConversationTemplate(
-            name="c1", turns=[Message(role="user", content="hi")]
-        )
+        conv = ConversationTemplate(name="c1", turns=[Message(role="user", content="hi")])
 
         # Then
         assert conv.unique_prefix is False
