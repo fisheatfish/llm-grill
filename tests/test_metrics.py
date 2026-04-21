@@ -10,6 +10,7 @@ import json
 
 import pytest
 
+import llm_grill
 from llm_grill.metrics import (
     RequestMetrics,
     aggregate,
@@ -471,3 +472,84 @@ class TestAggregateConversations:
 
         # Then
         assert conv[0].ttft_by_turn[0] == pytest.approx(0.1)
+
+
+class TestPublicAPI:
+    """Tests for the public aggregate() entry point exposed via llm_grill.__init__."""
+
+    def test_should_aggregate_single_target_jsonl(self):
+        """
+        Should return one AggregatedMetrics for a single-target JSONL string.
+
+        Given: Two RequestMetrics lines for the same (server, model)
+        When: Calling llm_grill.aggregate()
+        Then: Returns a list with one AggregatedMetrics with correct counts
+        """
+        # Given
+        lines = "\n".join(_make_result().to_jsonl() for _ in range(2))
+
+        # When
+        results = llm_grill.aggregate(lines)
+
+        # Then
+        assert len(results) == 1
+        assert results[0].total_requests == 2
+        assert isinstance(results[0], llm_grill.AggregatedMetrics)
+
+    def test_should_aggregate_multiple_targets_jsonl(self):
+        """
+        Should return one AggregatedMetrics per distinct (server, model) combination.
+
+        Given: JSONL lines for two different servers
+        When: Calling llm_grill.aggregate()
+        Then: Returns two AggregatedMetrics with correct server names
+        """
+        # Given
+        line1 = _make_result(server="vllm").to_jsonl()
+        line2 = _make_result(server="sglang").to_jsonl()
+        jsonl = line1 + "\n" + line2
+
+        # When
+        results = llm_grill.aggregate(jsonl)
+
+        # Then
+        assert len(results) == 2
+        servers = {r.target_server for r in results}
+        assert servers == {"vllm", "sglang"}
+
+    def test_should_raise_on_empty_jsonl(self):
+        """
+        Should raise ValueError when the jsonl string has no valid lines.
+
+        Given: Empty string input
+        When: Calling llm_grill.aggregate()
+        Then: ValueError is raised
+        """
+        # When / Then
+        with pytest.raises(ValueError):
+            llm_grill.aggregate("")
+
+    def test_should_raise_on_blank_only_jsonl(self):
+        """
+        Should raise ValueError when the jsonl string contains only whitespace/blank lines.
+
+        Given: String with only newlines and spaces
+        When: Calling llm_grill.aggregate()
+        Then: ValueError is raised
+        """
+        # When / Then
+        with pytest.raises(ValueError):
+            llm_grill.aggregate("   \n\n  ")
+
+    def test_types_importable_from_package_root(self):
+        """
+        Should be able to import all public types directly from the llm_grill package.
+
+        Given: The llm_grill package
+        When: Accessing public type attributes
+        Then: All expected types are present
+        """
+        assert hasattr(llm_grill, "AggregatedMetrics")
+        assert hasattr(llm_grill, "ConversationMetrics")
+        assert hasattr(llm_grill, "RequestMetrics")
+        assert hasattr(llm_grill, "aggregate_conversations")
