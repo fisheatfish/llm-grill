@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
-[![CI](https://github.com/fisheatfish/llm-grill/actions/workflows/ci-publish.yml/badge.svg)](https://github.com/fisheatfish/llm-grill/actions/workflows/ci-publish.yml)
+[![CI](https://github.com/notnotearlybirds/llm-grill/actions/workflows/ci-publish.yml/badge.svg)](https://github.com/notnotearlybirds/llm-grill/actions/workflows/ci-publish.yml)
 
 CLI for benchmarking LLM inference servers: vLLM, SGLang, llama.cpp, LiteLLM.
 

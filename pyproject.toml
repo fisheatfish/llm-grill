@@ -48,10 +48,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/fisheatfish/llm-grill"
-Repository = "https://github.com/fisheatfish/llm-grill"
-Issues = "https://github.com/fisheatfish/llm-grill/issues"
-Changelog = "https://github.com/fisheatfish/llm-grill/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/notnotearlybirds/llm-grill"
+Repository = "https://github.com/notnotearlybirds/llm-grill"
+Issues = "https://github.com/notnotearlybirds/llm-grill/issues"
+Changelog = "https://github.com/notnotearlybirds/llm-grill/blob/main/CHANGELOG.md"
 
 [project.scripts]
 llm-grill = "llm_grill.cli:app"

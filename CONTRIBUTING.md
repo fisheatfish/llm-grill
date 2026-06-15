@@ -3,7 +3,7 @@
 ## Setup
 
 ```bash
-git clone https://github.com/fisheatfish/llm-grill.git
+git clone https://github.com/notnotearlybirds/llm-grill.git
 cd llm-grill
 make install
 make test
